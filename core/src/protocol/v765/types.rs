@@ -2,7 +2,7 @@ use std::io::{Read, Seek, Write};
 
 use serverx_macros::{ProtoDecode, ProtoEncode};
 
-use crate::{protocol, protocol::types::VarInt};
+use crate::{protocol, protocol::types::VarInt, utils::identifier::Identifier};
 
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
 #[proto(enum_repr = "VarInt")]
@@ -43,4 +43,17 @@ pub enum ResourcePackResult {
     InvalidUrl,
     FailedToReload,
     Discarded,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct RegistryTag {
+    pub registry: Identifier,
+    pub entries: Vec<RegistryEntry>,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct RegistryEntry {
+    pub tag_name: Identifier,
+    #[proto(repr = "Vec<VarInt>")]
+    pub tag_entries: Vec<i32>,
 }

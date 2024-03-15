@@ -10,7 +10,7 @@ use crate::{
     nbt, protocol,
     protocol::{
         types::{RemainingBytes, VarInt},
-        v765::types::LoginProperty,
+        v765::types::{LoginProperty, RegistryTag},
     },
     utils::identifier::Identifier,
 };
@@ -130,6 +130,34 @@ pub struct FeatureFlags {
     pub flags: Vec<Identifier>,
 }
 
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x09, ClientBound, Configuration)]
+pub struct UpdateTags {
+    pub tags: Vec<RegistryTag>,
+}
+// Game join
+// Difficulty
+// Play abilities
+// Selected slot
+// Recipes
+// EntityStatus
+// Command Tree
+// Unlock Recipes
+// Position Look
+// Server Metadata
+// Player List
+// World Border
+// World Time Update
+// Spawn Position
+// Game State Change
+// Update Tick Rate
+// Tick Step
+// Chunk Render Distance Center
+// Inventory
+// Entity Tracker
+// Entity Attributes
+// Advancement Update
+//
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
 #[packet(0x67, ClientBound, Play)]
 pub struct StartConfiguration;

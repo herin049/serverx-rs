@@ -91,9 +91,12 @@ pub fn spawn_read_loop(
                     }
                 }
                 Err(err) => {
-                    tracing::debug!(?err, "error while reading packet");
-                    // let _ = events.send(NetEvent::Disconnected { client });
-                    break;
+                    if let PacketReadErr::IoErr(_) = err {
+                        let _ = events.send(NetEvent::Disconnected { client });
+                        break;
+                    } else {
+                        tracing::warn!(?err, "error while reading packet");
+                    }
                 }
             }
         }

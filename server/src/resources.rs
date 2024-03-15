@@ -1,6 +1,7 @@
 use std::{fs::File, io, path::Path};
 
 use serverx_core::{nbt, nbt::decode::NbtDecodeErr};
+use tracing::instrument;
 
 pub struct Resources {
     pub registry_data: nbt::Tag,
@@ -17,7 +18,9 @@ pub fn load_registry_data(resource_path: &Path) -> Result<nbt::Tag, LoadResource
     nbt::io::read_tag(&mut file).map_err(|err| LoadResourcesErr::NbtErr(err))
 }
 
+#[instrument]
 pub fn load(resource_path: &Path) -> Result<Resources, LoadResourcesErr> {
+    tracing::debug!("loading resources");
     let registry_data = load_registry_data(resource_path)?;
     Ok(Resources { registry_data })
 }

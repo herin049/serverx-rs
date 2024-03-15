@@ -66,7 +66,8 @@ impl PacketEncoder for PacketEncoderImpl {
                         RegistryData,
                         ConfigRemoveResourcePack,
                         ConfigAddResourcePack,
-                        FeatureFlags
+                        FeatureFlags,
+                        UpdateTags
                     )
                 }
             },
@@ -119,7 +120,6 @@ impl PacketDecoder for PacketDecoderImpl {
         reader: &mut R,
         alloc_tracker: &mut T,
     ) -> Result<Box<dyn Packet>, ProtoDecodeErr> {
-        println!("{}", id);
         match direction {
             PacketDirection::ClientBound => match state {
                 ConnectionState::Handshake => {
@@ -162,7 +162,8 @@ impl PacketDecoder for PacketDecoderImpl {
                         RegistryData,
                         ConfigRemoveResourcePack,
                         ConfigAddResourcePack,
-                        FeatureFlags
+                        FeatureFlags,
+                        UpdateTags
                     )
                 }
             },

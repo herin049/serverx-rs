@@ -1,5 +1,6 @@
 #![feature(proc_macro_quote)]
 
+mod ecs;
 mod identifier;
 mod nbt;
 mod packet;
@@ -8,6 +9,7 @@ mod proto;
 use proc_macro::TokenStream;
 
 use crate::{
+    ecs::component_tuple_macro_impl,
     identifier::identifier_macro_impl,
     nbt::nbt_macro_impl,
     packet::packet_macro_impl,
@@ -37,4 +39,9 @@ pub fn nbt(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn identifier(input: TokenStream) -> TokenStream {
     identifier_macro_impl(input.into()).into()
+}
+
+#[proc_macro]
+pub fn component_tuple_impl(input: TokenStream) -> TokenStream {
+    component_tuple_macro_impl(input.into()).into()
 }

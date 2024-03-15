@@ -14,6 +14,7 @@ use crate::protocol::{
 };
 
 pub mod collections;
+mod ecs;
 pub mod nbt;
 pub mod protocol;
 pub mod utils;

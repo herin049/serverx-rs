@@ -6,8 +6,8 @@ use std::net::SocketAddr;
 use flume::{Receiver, Sender};
 pub use profile::*;
 use serverx_core::protocol::packet::Packet;
+use slab::Slab;
 use uuid::Uuid;
-use serverx_slab::Slab;
 
 use crate::client::state::ClientState;
 

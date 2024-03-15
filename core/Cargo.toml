@@ -16,5 +16,9 @@ serde_json = "1.0.114"
 aes = "0.8.4"
 cfb8 = "0.8.1"
 tokio = { version = "1.36.0", features = ["full"] }
-
+slab = "0.4.9"
+smallvec = "1.13.1"
 serverx-macros = { path = "../macros" }
+hashbrown = "0.12.3"
+atomic_refcell = "0.1.13"
+rayon = "1.9.0"
