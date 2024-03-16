@@ -1,63 +1,57 @@
-use crate::ecs::{
-    component::{Component, ComponentSet},
-    storage::ComponentVec,
-    tuple::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
-    world::{World, WorldAccessor},
-    Generation, Index,
-};
+use std::fmt::{Debug, Display, Formatter};
 
-pub struct Entity(pub Index, pub Generation);
+use crate::ecs::{ArchetypeId, Generation, Index};
 
-pub struct EntityRef<'a> {
-    pub accessor: WorldAccessor<'a>,
-    pub index: Index,
-}
+#[derive(PartialEq, Eq)]
+pub struct Entity(u64);
 
-impl<'a> EntityRef<'a> {
-    pub fn has_components<T: ComponentTuple>(&self) -> bool {
-        WorldAccessor::has_components::<T>(&self.accessor, self.index)
+impl Entity {
+    pub fn new(index: Index, generation: Generation, archetype_id: ArchetypeId) -> Self {
+        Self(
+            ((index as u32) as u64)
+                | (((generation as u16) as u64) << 32)
+                | (((archetype_id as u16) as u64) << 48),
+        )
     }
 
-    pub fn get_components<T: ComponentRefTuple>(&self) -> T {
-        WorldAccessor::get_components(&self.accessor, self.index).unwrap()
+    pub fn index(&self) -> Index {
+        (self.0 as u32) as Index
     }
 
-    pub fn has_component<T: Component>(&self) -> bool {
-        WorldAccessor::has_component::<T>(&self.accessor, self.index)
+    pub fn generation(&self) -> Generation {
+        ((self.0 >> 32) as u16) as Generation
     }
 
-    pub fn get_component<T: Component>(&self) -> &T {
-        WorldAccessor::get_component::<T>(&self.accessor, self.index).unwrap()
+    pub fn archetype(&self) -> ArchetypeId {
+        ((self.0 >> 48) as u16) as ArchetypeId
     }
 }
 
-pub struct EntityMut<'a> {
-    pub accessor: WorldAccessor<'a>,
-    pub index: Index,
+impl Display for Entity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Entity(index={}, generation={}, archetype={})",
+            self.index(),
+            self.generation(),
+            self.archetype()
+        )
+    }
 }
 
-impl<'a> EntityMut<'a> {
-    pub fn has_components<T: ComponentTuple>(&self) -> bool {
-        WorldAccessor::has_components::<T>(&self.accessor, self.index)
+impl Debug for Entity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        <dyn Display>::fmt(self, f)
     }
+}
 
-    pub fn get_components<T: ComponentRefTuple>(&self) -> T {
-        WorldAccessor::get_components(&self.accessor, self.index).unwrap()
-    }
+#[cfg(test)]
+pub mod tests {
+    use crate::ecs::entity::Entity;
 
-    pub fn get_components_mut<T: ComponentBorrowTuple>(&mut self) -> T {
-        WorldAccessor::get_components_mut(&mut self.accessor, self.index).unwrap()
-    }
-
-    pub fn has_component<T: Component>(&self) -> bool {
-        WorldAccessor::has_component::<T>(&self.accessor, self.index)
-    }
-
-    pub fn get_component<T: Component>(&self) -> &T {
-        WorldAccessor::get_component::<T>(&self.accessor, self.index).unwrap()
-    }
-
-    pub fn get_component_mut<T: Component>(&mut self) -> &mut T {
-        WorldAccessor::get_component_mut::<T>(&mut self.accessor, self.index).unwrap()
+    #[test]
+    pub fn test() {
+        let a = Entity::new(123, 456, 789);
+        println!("{}", a);
     }
 }

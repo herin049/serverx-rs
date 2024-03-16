@@ -2,15 +2,16 @@ use std::fmt::{Debug, Display, Formatter};
 
 use itertools::Itertools;
 
-pub type ComponentId = usize;
+use crate::ecs::ComponentId;
+
 pub unsafe trait Component: Debug + Sized + Send + Sync + 'static {
-    const ID: usize;
+    const ID: ComponentId;
 }
 
 pub const MAX_COMPONENTS: usize = 128;
 pub const COMPONENT_SET_LEN: usize = (MAX_COMPONENTS + 63) / 64;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ComponentSet(pub [u64; COMPONENT_SET_LEN]);
 
 impl From<[u64; COMPONENT_SET_LEN]> for ComponentSet {
@@ -29,19 +30,21 @@ impl ComponentSet {
     }
 
     pub fn clear(&mut self) {
-        for x in self.0.iter_mut() {
-            *x = 0;
+        for i in 0..COMPONENT_SET_LEN {
+            unsafe {
+                *self.0.get_unchecked_mut(i) = 0;
+            }
         }
     }
 
     pub fn count_ones(&self) -> usize {
-        let mut result = 0usize;
+        let mut count = 0usize;
         for i in 0..COMPONENT_SET_LEN {
             unsafe {
-                result += self.0.get_unchecked(i).count_ones() as usize;
+                count += self.0.get_unchecked(i).count_ones() as usize;
             }
         }
-        result
+        count
     }
 
     pub fn add(&mut self, component_id: ComponentId) {
@@ -119,6 +122,33 @@ impl ComponentSet {
         }
         true
     }
+
+    pub fn iter(&self) -> ComponentSetIter {
+        ComponentSetIter {
+            component_set: self,
+            curr: 0,
+        }
+    }
+}
+
+pub struct ComponentSetIter<'a> {
+    component_set: &'a ComponentSet,
+    curr: ComponentId,
+}
+
+impl<'a> Iterator for ComponentSetIter<'a> {
+    type Item = ComponentId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while (self.curr as usize) < MAX_COMPONENTS {
+            let curr = self.curr;
+            self.curr += 1;
+            if self.component_set.contains(curr) {
+                return Some(curr);
+            }
+        }
+        None
+    }
 }
 
 impl Display for ComponentSet {
@@ -172,5 +202,9 @@ mod tests {
         set2.add(1);
 
         println!("{} {}", set2.subset(&set1), set1.subset(&set2));
+
+        let mut set3 = ComponentSet::ones();
+
+        println!("{}", set3);
     }
 }
