@@ -1,5 +1,3 @@
-use std::mem::MaybeUninit;
-
 use serverx_macros::component_tuple_impl;
 
 use crate::ecs::{
@@ -12,8 +10,8 @@ pub trait ComponentTuple {
     const COMPONENT_SET: ComponentSet;
     const COMPONENT_COUNT: usize;
 
-    unsafe fn init_storage_unchecked(storage: &mut ArchetypeStorage);
-    unsafe fn insert_unchecked(self, storage: &mut ArchetypeStorage, index: Index);
+    unsafe fn init_storage(storage: &mut ArchetypeStorage);
+    unsafe fn push(self, storage: &mut ArchetypeStorage) -> Index;
 }
 
 pub trait ComponentBorrow<'a> {
@@ -21,7 +19,7 @@ pub trait ComponentBorrow<'a> {
     const REF: bool;
     const MUT: bool;
 
-    unsafe fn get_unchecked(storage: &'a ArchetypeStorage, index: Index) -> Self;
+    unsafe fn get(storage: &'a ArchetypeStorage, index: Index) -> Self;
 }
 
 pub trait ComponentRef<'a>: ComponentBorrow<'a> {}
@@ -32,7 +30,7 @@ impl<'a, T: Component> ComponentBorrow<'a> for &'a T {
     const MUT: bool = false;
     const REF: bool = true;
 
-    unsafe fn get_unchecked(storage: &'a ArchetypeStorage, index: Index) -> Self {
+    unsafe fn get(storage: &'a ArchetypeStorage, index: Index) -> Self {
         storage
             .components
             .get_unchecked(Self::ValueType::ID as usize)
@@ -48,7 +46,7 @@ impl<'a, T: Component> ComponentBorrow<'a> for &'a mut T {
     const MUT: bool = true;
     const REF: bool = false;
 
-    unsafe fn get_unchecked(storage: &'a ArchetypeStorage, index: Index) -> Self {
+    unsafe fn get(storage: &'a ArchetypeStorage, index: Index) -> Self {
         storage
             .components
             .get_unchecked(Self::ValueType::ID as usize)
@@ -65,7 +63,7 @@ pub trait ComponentBorrowTuple<'a> {
     const WRITE_COMPONENT_SET: ComponentSet;
     type ValueType: ComponentTuple;
 
-    unsafe fn get_unchecked(storage: &'a ArchetypeStorage, index: Index) -> Self;
+    unsafe fn get(storage: &'a ArchetypeStorage, index: Index) -> Self;
 }
 
 pub trait ComponentRefTuple<'a>: ComponentBorrowTuple<'a> {}

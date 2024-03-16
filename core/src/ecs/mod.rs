@@ -1,5 +1,4 @@
 mod access;
-pub mod archetype;
 pub mod component;
 mod entity;
 pub mod storage;
@@ -8,6 +7,6 @@ mod tuple;
 pub mod world;
 
 pub type Index = u32;
-pub type Generation = u32;
-pub type ComponentId = u16;
-pub type ArchetypeId = u16;
+pub type Generation = u64;
+pub type ComponentId = u32;
+pub type ArchetypeId = u32;

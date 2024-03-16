@@ -3,27 +3,31 @@ use std::fmt::{Debug, Display, Formatter};
 use crate::ecs::{ArchetypeId, Generation, Index};
 
 #[derive(PartialEq, Eq)]
-pub struct Entity(u64);
+pub struct Entity {
+    archetype_id: ArchetypeId,
+    archetype_index: Index,
+    generation: Generation
+}
 
 impl Entity {
-    pub fn new(index: Index, generation: Generation, archetype_id: ArchetypeId) -> Self {
-        Self(
-            ((index as u32) as u64)
-                | (((generation as u16) as u64) << 32)
-                | (((archetype_id as u16) as u64) << 48),
-        )
+    pub fn new(archetype_id: ArchetypeId, archetype_index: Index, generation: Generation) -> Self {
+        Self {
+            archetype_id,
+            archetype_index,
+            generation
+        }
     }
 
-    pub fn index(&self) -> Index {
-        (self.0 as u32) as Index
+    pub fn archetype_id(&self) -> ArchetypeId {
+        self.archetype_id
+    }
+
+    pub fn archetype_index(&self) -> Index {
+        self.archetype_index
     }
 
     pub fn generation(&self) -> Generation {
-        ((self.0 >> 32) as u16) as Generation
-    }
-
-    pub fn archetype(&self) -> ArchetypeId {
-        ((self.0 >> 48) as u16) as ArchetypeId
+        self.generation
     }
 }
 
@@ -31,10 +35,10 @@ impl Display for Entity {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Entity(index={}, generation={}, archetype={})",
-            self.index(),
-            self.generation(),
-            self.archetype()
+            "Entity(archetype_id={}, archetype_index={}, generation={})",
+            self.archetype_id(),
+            self.archetype_index(),
+            self.generation()
         )
     }
 }

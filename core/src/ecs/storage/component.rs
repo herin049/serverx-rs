@@ -8,8 +8,7 @@ use std::{
 use crate::ecs::{component::Component, storage::sync_unsafe_cell::SyncUnsafeCell, Index};
 
 pub trait ComponentStorage: Send + Sync {
-    unsafe fn swap_remove_unchecked(&self, index: Index);
-    unsafe fn drop_at_unchecked(&mut self, index: Index);
+    fn swap_remove(&mut self, index: Index);
     unsafe fn fmt_at_unchecked(
         &self,
         f: &mut Formatter<'_>,
@@ -32,7 +31,7 @@ impl dyn ComponentStorage {
 }
 
 pub struct ComponentVec<T: Component> {
-    pub data: Vec<SyncUnsafeCell<MaybeUninit<T>>>,
+    pub data: Vec<SyncUnsafeCell<T>>,
 }
 
 impl<T: Component> ComponentVec<T> {
@@ -41,35 +40,22 @@ impl<T: Component> ComponentVec<T> {
     }
 
     pub unsafe fn get_unchecked(&self, index: Index) -> &T {
-        (&*self.data.get_unchecked(index as usize).get()).assume_init_ref()
+        &*self.data.get_unchecked(index as usize).get()
     }
 
     pub unsafe fn get_mut_unchecked(&self, index: Index) -> &mut T {
-        (&mut *self.data.get_unchecked(index as usize).get()).assume_init_mut()
+        &mut *self.data.get_unchecked(index as usize).get()
     }
 
-    pub unsafe fn remove_unchecked(&self, index: Index) -> T {
-        let value_ptr = (&mut *self.data.get_unchecked(index as usize).get()).as_mut_ptr();
-        ptr::read(value_ptr)
-    }
-
-    pub unsafe fn insert_unchecked(&mut self, index: Index, value: T) {
-        if (index as usize) >= self.data.len() {
-            let diff = (index as usize + 1) - self.data.len();
-            self.data.reserve(diff);
-            self.data.set_len(index as usize + 1);
-        }
-        (&mut *self.data.get_unchecked_mut(index as usize).get()).write(value);
+    pub fn push(&mut self, value: T) -> Index {
+        self.data.push(SyncUnsafeCell::new(value));
+        (self.data.len() - 1) as Index
     }
 }
 
 impl<T: Component> ComponentStorage for ComponentVec<T> {
-    unsafe fn swap_remove_unchecked(&self, index: Index) {
-        todo!()
-    }
-
-    unsafe fn drop_at_unchecked(&mut self, index: Index) {
-        let _ = self.remove_unchecked(index);
+    fn swap_remove(&mut self, index: Index) {
+        self.data.swap_remove(index as usize);
     }
 
     unsafe fn fmt_at_unchecked(&self, f: &mut Formatter<'_>, index: Index) -> Result<(), Error> {
