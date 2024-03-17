@@ -29,6 +29,7 @@ impl ComponentSet {
         ComponentSet([!0u64; COMPONENT_SET_LEN])
     }
 
+    #[inline(always)]
     pub fn clear(&mut self) {
         for i in 0..COMPONENT_SET_LEN {
             unsafe {
@@ -37,6 +38,7 @@ impl ComponentSet {
         }
     }
 
+    #[inline(always)]
     pub fn count_ones(&self) -> usize {
         let mut count = 0usize;
         for i in 0..COMPONENT_SET_LEN {
@@ -47,24 +49,28 @@ impl ComponentSet {
         count
     }
 
+    #[inline(always)]
     pub fn add(&mut self, component_id: ComponentId) {
         let data_index = component_id as usize / 64;
         let data_offset = component_id as usize % 64;
         self.0[data_index] = (self.0[data_index] | (1u64 << data_offset));
     }
 
+    #[inline(always)]
     pub fn remove(&mut self, component_id: ComponentId) {
         let data_index = component_id as usize / 64;
         let data_offset = component_id as usize % 64;
         self.0[data_index] = self.0[data_index] & !(1u64 << data_offset);
     }
 
+    #[inline(always)]
     pub fn contains(&self, component_id: ComponentId) -> bool {
         let data_index = component_id as usize / 64;
         let data_offset = component_id as usize % 64;
         (self.0[data_index] & (1 << data_offset)) != 0
     }
 
+    #[inline(always)]
     pub fn disjoint(&self, other: &ComponentSet) -> bool {
         for i in 0..COMPONENT_SET_LEN {
             unsafe {
@@ -76,6 +82,22 @@ impl ComponentSet {
         true
     }
 
+    #[inline(always)]
+    pub fn disjoint2(&self, other1: &ComponentSet, other2: &ComponentSet) -> bool {
+        for i in 0..COMPONENT_SET_LEN {
+            unsafe {
+                if (*self.0.get_unchecked(i)
+                    & (*other1.0.get_unchecked(i) | *other2.0.get_unchecked(i)))
+                    != 0
+                {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    #[inline(always)]
     pub fn subset(&self, other: &ComponentSet) -> bool {
         for i in 0..COMPONENT_SET_LEN {
             unsafe {
@@ -88,6 +110,7 @@ impl ComponentSet {
         true
     }
 
+    #[inline(always)]
     pub fn subset2(&self, other1: &ComponentSet, other2: &ComponentSet) -> bool {
         for i in 0..COMPONENT_SET_LEN {
             unsafe {
@@ -102,6 +125,7 @@ impl ComponentSet {
         true
     }
 
+    #[inline(always)]
     pub fn subset3(
         &self,
         other1: &ComponentSet,
@@ -123,6 +147,7 @@ impl ComponentSet {
         true
     }
 
+    #[inline(always)]
     pub fn iter(&self) -> ComponentSetIter {
         ComponentSetIter {
             component_set: self,

@@ -5,15 +5,13 @@ use std::{
     ptr,
 };
 
+use itertools::Itertools;
+
 use crate::ecs::{component::Component, storage::sync_unsafe_cell::SyncUnsafeCell, Index};
 
-pub trait ComponentStorage: Send + Sync {
-    fn swap_remove(&mut self, index: Index);
-    unsafe fn fmt_at_unchecked(
-        &self,
-        f: &mut Formatter<'_>,
-        index: Index,
-    ) -> Result<(), fmt::Error>;
+pub trait ComponentStorage: Debug + Send + Sync {
+    fn swap_remove_component(&mut self, index: Index);
+    fn get_dyn_component(&self, index: Index) -> &dyn Debug;
 }
 
 impl dyn ComponentStorage {
@@ -39,26 +37,40 @@ impl<T: Component> ComponentVec<T> {
         Self { data: Vec::new() }
     }
 
-    pub unsafe fn get_unchecked(&self, index: Index) -> &T {
+    pub unsafe fn get_component_unchecked(&self, index: Index) -> &T {
         &*self.data.get_unchecked(index as usize).get()
     }
 
-    pub unsafe fn get_mut_unchecked(&self, index: Index) -> &mut T {
+    pub unsafe fn get_mut_component_unchecked(&self, index: Index) -> &mut T {
         &mut *self.data.get_unchecked(index as usize).get()
     }
 
-    pub fn push(&mut self, value: T) -> Index {
+    #[inline(always)]
+    pub fn push_component(&mut self, value: T) -> Index {
         self.data.push(SyncUnsafeCell::new(value));
         (self.data.len() - 1) as Index
     }
 }
 
+impl<T: Component> Debug for ComponentVec<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{:?}]",
+            self.data
+                .iter()
+                .map(|e| { unsafe { &*e.get() } })
+                .format(", ")
+        )
+    }
+}
+
 impl<T: Component> ComponentStorage for ComponentVec<T> {
-    fn swap_remove(&mut self, index: Index) {
+    fn swap_remove_component(&mut self, index: Index) {
         self.data.swap_remove(index as usize);
     }
 
-    unsafe fn fmt_at_unchecked(&self, f: &mut Formatter<'_>, index: Index) -> Result<(), Error> {
-        <dyn Debug>::fmt(self.get_unchecked(index), f)
+    fn get_dyn_component(&self, index: Index) -> &dyn Debug {
+        unsafe { &*self.data[index as usize].get() }
     }
 }
