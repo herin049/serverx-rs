@@ -76,14 +76,12 @@ impl ArchetypeStorage {
     }
 
     pub unsafe fn push<T: ComponentTuple>(&mut self, values: T) -> Entity {
-        let vacant_entry = self.entity_lookup.vacant_entry();
-        let archetype_index = vacant_entry.key() as Index;
+        T::push_components(values, self);
+        let archetype_index = self.entity_lookup.insert(self.entities.len() as Index) as Index;
         let generation = self.generation;
         self.generation = self.generation.wrapping_add(1);
-        vacant_entry.insert(self.entities.len() as Index);
         let entity = Entity::new(self.archetype_id, archetype_index, generation);
         self.entities.push(entity);
-        T::push_components(values, self);
         entity
     }
 
@@ -121,6 +119,18 @@ impl ArchetypeStorage {
             archetype: self,
             curr: 0,
             chunk_size,
+        }
+    }
+}
+
+impl Drop for ArchetypeStorage {
+    fn drop(&mut self) {
+        for component_id in self.component_set.iter() {
+            unsafe {
+                self.components
+                    .get_unchecked_mut(component_id as usize)
+                    .assume_init_drop();
+            }
         }
     }
 }
@@ -178,6 +188,8 @@ impl<'a> ArchetypeChunk<'a> {
         &self.archetype.entities[(self.range.start as usize)..(self.range.end as usize)]
     }
 }
+
+
 
 impl<'a> Debug for ArchetypeChunk<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

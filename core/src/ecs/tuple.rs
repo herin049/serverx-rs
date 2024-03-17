@@ -1,3 +1,4 @@
+use std::ops::Range;
 use serverx_macros::component_tuple_impl;
 
 use crate::ecs::{
@@ -91,5 +92,6 @@ impl<'a> ComponentBorrowTuple<'a> for () {
 pub trait ComponentRefTuple<'a>: ComponentBorrowTuple<'a> {}
 
 impl<'a> ComponentRefTuple<'a> for () {}
+
 
 component_tuple_impl!(10);

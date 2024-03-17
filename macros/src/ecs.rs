@@ -40,7 +40,7 @@ pub fn component_ntuple_impl(count: usize) -> TokenStream {
 
             const COMPONENT_COUNT: usize = #count;
 
-            unsafe fn init_storage(storage: &mut ArchetypeStorage) {
+            unsafe fn init_archetype_storage(storage: &mut ArchetypeStorage) {
                 #(
                     storage
                         .components
@@ -49,7 +49,8 @@ pub fn component_ntuple_impl(count: usize) -> TokenStream {
                 )*
             }
 
-            unsafe fn push(self, storage: &mut ArchetypeStorage) -> Index {
+            #[inline(always)]
+            unsafe fn push_components(self, storage: &mut ArchetypeStorage) -> Index {
                 unsafe {
                     #(
                         storage
@@ -57,7 +58,7 @@ pub fn component_ntuple_impl(count: usize) -> TokenStream {
                             .get_unchecked_mut(#ty_idents::ID as usize)
                             .assume_init_mut()
                             .downcast_mut_unchecked::<ComponentVec<#ty_idents>>()
-                            .push(self.#ty_indexes)
+                            .push_component(self.#ty_indexes)
                     );*
                 }
             }
@@ -81,8 +82,8 @@ pub fn component_ntuple_impl(count: usize) -> TokenStream {
 
             type ValueType = (#(#ty_idents::ValueType,)*);
 
-            unsafe fn get(storage: &'a ArchetypeStorage, index: Index) -> Self {
-                (#(#ty_idents::get(storage, index),)*)
+            unsafe fn get_components(storage: &'a ArchetypeStorage, index: Index) -> Self {
+                (#(#ty_idents::get_component(storage, index),)*)
             }
         }
 

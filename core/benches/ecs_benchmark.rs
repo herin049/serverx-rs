@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use criterion::{black_box, criterion_group, criterion_main, Bencher, Criterion};
 use serverx_core::ecs::{
     component::Component, fibonacci, storage::archetype::ArchetypeStorage, tuple::ComponentTuple,
@@ -113,9 +115,11 @@ fn archetype_push(archetype: &mut ArchetypeStorage, count: usize) {
 }
 
 pub fn archetype_push_benchmark(c: &mut Criterion) {
-    let mut archetype = ArchetypeStorage::new::<(Position, Velocity, Name, Dimensions)>(0);
     c.bench_function("archetype push 10000", |b| {
-        b.iter(|| archetype_push(&mut archetype, black_box(10000)))
+        b.iter(|| {
+            let mut archetype = ArchetypeStorage::new::<(Position, Velocity, Name, Dimensions)>(0);
+            archetype_push(&mut archetype, black_box(10000));
+        })
     });
 }
 
@@ -131,18 +135,18 @@ fn world_push(world: &mut World, count: usize) {
 }
 
 pub fn world_push_benchmark(c: &mut Criterion) {
-    let mut world = World::new();
     c.bench_function("world push 10000", |b| {
-        b.iter(|| world_push(&mut world, black_box(10000)))
+        b.iter(|| {
+            let mut world = black_box(World::new());
+            world_push(&mut world, black_box(10000));
+        })
     });
 }
 
 criterion_group!(
-    benches,
-    vec_push_benchmark,
-    archetype_raw_push_benchmark,
-    archetype_push_benchmark,
-    world_push_benchmark,
-    legion_push_benchmark
+    name = benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(10));
+    targets = world_push_benchmark, archetype_push_benchmark, legion_push_benchmark
+    // targets = vec_push_benchmark, archetype_raw_push_benchmark, archetype_push_benchmark, world_push_benchmark, legion_push_benchmark
 );
 criterion_main!(benches);

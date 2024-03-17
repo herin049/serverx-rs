@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Formatter};
+use itertools::izip;
 
 use crate::ecs::{
     component::ComponentSet,
@@ -74,7 +75,23 @@ impl World {
         }
     }
 
-    pub fn run_par<'a, S: System<'a> + Sync>(&'a mut self, system: &S) {
+    // pub fn run_par_chained<'a, S: SystemChain<'a> + Sync>(&'a mut self, systems: &S) {
+    //     if S::GLOBAL_WRITE_COMPONENT_SET.count_ones() > 0 {
+    //         panic!("global write components in non-mut system");
+    //     } else if !S::GLOBAL_READ_COMPONENT_SET.disjoint(&S::LOCAL_WRITE_COMPONENT_SET) {
+    //         panic!("global read components alias with local write components");
+    //     } else {
+    //         rayon::scope(|s| {
+    //             for archetype in self.archetypes.iter() {
+    //                 if <S::Local as ComponentBorrowTuple>::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
+    //
+    //                 }
+    //             }
+    //         });
+    //     }
+    // }
+
+    pub fn run_par<'a, 'b,  S: System<'b> + Sync>(&'a mut self, system: &S) where 'a: 'b {
         if S::Global::WRITE_COMPONENT_SET.count_ones() > 0 {
             panic!("global write components in non-mut system");
         } else if !S::Global::READ_COMPONENT_SET.disjoint(&S::Local::WRITE_COMPONENT_SET) {

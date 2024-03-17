@@ -1,6 +1,7 @@
 use crate::ecs::{
     component::ComponentSet,
     entity::Entity,
+    storage::archetype::ArchetypeChunk,
     tuple::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
     world::World,
 };
@@ -97,3 +98,4 @@ pub trait SystemMut<'a> {
         system_accessor: &mut SystemAccessor,
     );
 }
+
