@@ -1,3 +1,6 @@
+#![recursion_limit = "4096"]
+extern crate core;
+
 use std::{
     any::Any,
     io::{Read, Seek, Write},

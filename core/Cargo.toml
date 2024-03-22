@@ -18,12 +18,12 @@ cfb8 = "0.8.1"
 tokio = { version = "1.36.0", features = ["full"] }
 slab = "0.4.9"
 smallvec = "1.13.1"
-serverx-macros = { path = "../macros" }
+impl-trait-for-tuples = "0.2.2"
 hashbrown = "0.12.3"
 atomic_refcell = "0.1.13"
 rayon = "1.9.0"
 log = "0.4.21"
-legion = "0.4.0"
+serverx-macros = { path = "../macros" }
 
 [dev-dependencies]
 criterion = "0.4.0"

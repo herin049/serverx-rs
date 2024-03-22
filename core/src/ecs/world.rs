@@ -1,157 +1,148 @@
-use std::fmt::{Debug, Formatter};
-use itertools::izip;
+use std::{
+    any::TypeId,
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
+
+use slab::Slab;
 
 use crate::ecs::{
-    component::ComponentSet,
-    entity::{DebugEntity, Entity},
-    storage::archetype::ArchetypeStorage,
-    system::{System, SystemAccessor, SystemMut, SystemPermissions},
-    tuple::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
-    ArchetypeId, Index,
+    entity::Entity,
+    sort::insertion_sort,
+    storage::archetype::{ArchetypeStorage, DebugArchetypeEntry},
+    system::{System, SystemAccessor},
+    tuple::{type_tuple::TypeTuple, ComponentBorrowTuple, ComponentTuple},
+    types, ArchetypeId, ArchetypeIndex,
 };
+use crate::ecs::system::SystemMut;
+use crate::ecs::tuple::ComponentRefTuple;
 
 pub struct World {
     pub archetypes: Vec<ArchetypeStorage>,
-    pub archetype_lookup: hashbrown::HashMap<ComponentSet, ArchetypeId>,
+    pub archetype_lookup: Vec<(Box<[TypeId]>, ArchetypeId)>,
 }
 
 impl World {
     pub fn new() -> Self {
         Self {
             archetypes: Vec::new(),
-            archetype_lookup: hashbrown::HashMap::new(),
+            archetype_lookup: Vec::new(),
         }
     }
 
-    pub fn get_components<'a, T: ComponentRefTuple<'a>>(&'a self, entity: Entity) -> Option<T> {
+    pub fn lookup_entity(&self, entity: Entity) -> Option<(&ArchetypeStorage, ArchetypeIndex)> {
         if let Some(archetype) = self.archetypes.get(entity.archetype_id() as usize) {
-            if T::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
-                unsafe {
-                    return archetype.get_components(entity);
+            if let Some(index) = archetype
+                .entity_lookup
+                .get(entity.archetype_index() as usize)
+            {
+                let e = unsafe { archetype.entities.get_unchecked(*index as usize) };
+                if e.generation() == entity.generation() {
+                    return Some((archetype, *index));
                 }
             }
         }
         None
-    }
-
-    pub fn get_components_mut<'a, T: ComponentBorrowTuple<'a>>(
-        &'a mut self,
-        entity: Entity,
-    ) -> Option<T> {
-        if T::ValueType::COMPONENT_SET.count_ones() != T::ValueType::COMPONENT_COUNT {
-            panic!("type aliasing in component tuple");
-        } else if let Some(archetype) = self.archetypes.get(entity.archetype_id() as usize) {
-            if T::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
-                unsafe {
-                    return archetype.get_components_mut(entity);
-                }
-            }
-        }
-        None
-    }
-
-    pub fn push<T: ComponentTuple>(&mut self, values: T) -> Entity {
-        if T::COMPONENT_SET.count_ones() != T::COMPONENT_COUNT {
-            panic!("type aliasing in component tuple");
-        }
-        let archetype_id = if let Some(archetype_id) = self.archetype_lookup.get(&T::COMPONENT_SET)
-        {
-            *archetype_id
-        } else {
-            let archetype_id = self.archetypes.len() as ArchetypeId;
-            let archetype = ArchetypeStorage::new::<T>(archetype_id);
-            self.archetypes.push(archetype);
-            archetype_id
-        };
-        let archetype = unsafe { self.archetypes.get_unchecked_mut(archetype_id as usize) };
-        unsafe { archetype.push(values) }
     }
 
     pub fn remove(&mut self, entity: Entity) -> bool {
         if let Some(archetype) = self.archetypes.get_mut(entity.archetype_id() as usize) {
-            archetype.remove(entity)
+            archetype.remove_entity(entity)
         } else {
             false
         }
     }
 
-    // pub fn run_par_chained<'a, S: SystemChain<'a> + Sync>(&'a mut self, systems: &S) {
-    //     if S::GLOBAL_WRITE_COMPONENT_SET.count_ones() > 0 {
-    //         panic!("global write components in non-mut system");
-    //     } else if !S::GLOBAL_READ_COMPONENT_SET.disjoint(&S::LOCAL_WRITE_COMPONENT_SET) {
-    //         panic!("global read components alias with local write components");
-    //     } else {
-    //         rayon::scope(|s| {
-    //             for archetype in self.archetypes.iter() {
-    //                 if <S::Local as ComponentBorrowTuple>::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
-    //
-    //                 }
-    //             }
-    //         });
-    //     }
-    // }
+    pub fn push<T: ComponentTuple>(&mut self, values: T) -> Entity {
+        let mut tys = T::type_ids();
+        insertion_sort(tys.as_mut());
+        let m = self
+            .archetype_lookup
+            .binary_search_by_key(&tys.as_ref(), |x| x.0.as_ref());
+        match m {
+            Ok(i) => unsafe {
+                let archetype_id = self.archetype_lookup.get_unchecked(i).1;
+                self.archetypes
+                    .get_unchecked_mut(archetype_id as usize)
+                    .push_entity(values)
+            },
+            Err(i) => unsafe {
+                let archetype_id = self.archetypes.len() as ArchetypeId;
+                self.archetypes
+                    .push(ArchetypeStorage::new::<T>(archetype_id));
+                self.archetype_lookup.insert(i, (tys.into(), archetype_id));
+                self.archetypes
+                    .get_unchecked_mut(archetype_id as usize)
+                    .push_entity(values)
+            },
+        }
+    }
 
-    pub fn run_par<'a, 'b,  S: System<'b> + Sync>(&'a mut self, system: &S) where 'a: 'b {
-        if S::Global::WRITE_COMPONENT_SET.count_ones() > 0 {
-            panic!("global write components in non-mut system");
-        } else if !S::Global::READ_COMPONENT_SET.disjoint(&S::Local::WRITE_COMPONENT_SET) {
-            panic!("global read components alias with local write components");
-        } else {
-            let system_permissions = SystemPermissions {
-                read_local: S::Local::READ_COMPONENT_SET,
-                write_local: S::Local::WRITE_COMPONENT_SET,
-                read_global: S::Global::READ_COMPONENT_SET,
-                write_global: ComponentSet::zeros(),
-            };
-            rayon::scope(|s| {
-                for archetype in self.archetypes.iter() {
-                    if <S::Local as ComponentBorrowTuple>::ValueType::COMPONENT_SET
-                        .subset(&archetype.component_set)
-                    {
-                        for chunk in archetype.chunks(1024) {
-                            let mut system_accessor =
-                                SystemAccessor::new(self, &system_permissions);
-                            s.spawn(move |_| {
-                                for (index, entity) in chunk.entities().iter().enumerate() {
-                                    let index = index as Index;
-                                    unsafe {
-                                        system_accessor.set_current(*entity);
-                                        system.run(
-                                            *entity,
-                                            S::Local::get_components(archetype, index),
-                                            &mut system_accessor,
-                                        );
+    pub fn run_par<'a, S: System<'a> + Sync>(&'a mut self, system: &S)
+    where
+        S: Send,
+        <<S as System<'a>>::Local as ComponentBorrowTuple<'a>>::ValueType: Sync,
+        S::Global: ComponentRefTuple<'a>
+    {
+        if !types::disjoint(
+            <S::Global as ComponentBorrowTuple<'a>>::ReadType::type_ids().as_ref(),
+            <S::Local as ComponentBorrowTuple<'a>>::WriteType::type_ids().as_ref(),
+        ) {
+            panic!("global read set aliases with local write set");
+        }
+        rayon::scope(|s| {
+            for archetype in self.archetypes.iter() {
+                if types::subset(
+                    <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
+                    archetype.type_ids.as_ref(),
+                ) {
+                    unsafe {
+                        for chunk in archetype.chunks_mut::<S::Local>(4096) {
+                            s.spawn(|_| {
+                                let mut accessor =
+                                    SystemAccessor::<'a, S::Local, S::Global>::new(self);
+                                unsafe {
+                                    for (entity, values) in chunk {
+                                        accessor.update_entity(entity);
+                                        system.run(entity, values, &mut accessor);
                                     }
                                 }
                             });
                         }
                     }
                 }
-            });
+            }
+        });
+    }
+
+    pub fn run<'a, S: System<'a>>(&'a mut self, system: &S) {
+        let mut accessor = SystemAccessor::<'a, S::Local, S::Global>::new(self);
+        for archetype in self.archetypes.iter() {
+            if types::subset(
+                <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
+                archetype.type_ids.as_ref(),
+            ) {
+                unsafe {
+                    for (entity, values) in archetype.iter_mut::<S::Local>() {
+                        accessor.update_entity(entity);
+                        system.run(entity, values, &mut accessor);
+                    }
+                }
+            }
         }
     }
 
     pub fn run_mut<'a, S: SystemMut<'a>>(&'a mut self, system: &mut S) {
-        let system_permissions = SystemPermissions {
-            read_local: S::Local::READ_COMPONENT_SET,
-            write_local: S::Local::WRITE_COMPONENT_SET,
-            read_global: S::Global::READ_COMPONENT_SET,
-            write_global: S::Global::WRITE_COMPONENT_SET,
-        };
-        let mut system_accessor = SystemAccessor::new(self, &system_permissions);
+        let mut accessor = SystemAccessor::<'a, S::Local, S::Global>::new(self);
         for archetype in self.archetypes.iter() {
-            if <S::Local as ComponentBorrowTuple>::ValueType::COMPONENT_SET
-                .subset(&archetype.component_set)
-            {
-                for (index, entity) in archetype.entities.iter().enumerate() {
-                    let index = index as Index;
-                    unsafe {
-                        system_accessor.set_current(*entity);
-                        system.run(
-                            *entity,
-                            S::Local::get_components(archetype, index),
-                            &mut system_accessor,
-                        );
+            if types::subset(
+                <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
+                archetype.type_ids.as_ref(),
+            ) {
+                unsafe {
+                    for (entity, values) in archetype.iter_mut::<S::Local>() {
+                        accessor.update_entity(entity);
+                        system.run(entity, values, &mut accessor);
                     }
                 }
             }
@@ -159,109 +150,105 @@ impl World {
     }
 }
 
+unsafe impl Sync for World {}
+
 impl Debug for World {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut list_fmt = f.debug_list();
-        for archetype in self.archetypes.iter() {
-            for entity in archetype.entities.iter() {
-                list_fmt.entry(&DebugEntity { archetype, entity });
-            }
+        let mut debug_list = f.debug_list();
+        for arch in self.archetypes.iter() {
+            (0..arch.entities.len()).for_each(|i| {
+                debug_list.entry(&DebugArchetypeEntry {
+                    archetype_storage: arch,
+                    index: i,
+                });
+            });
         }
-        list_fmt.finish()
+        debug_list.finish()
+    }
+}
+
+pub struct WorldAccess<'a, T: ComponentBorrowTuple<'a>> {
+    pub world: &'a World,
+    phantom: PhantomData<T>,
+}
+
+impl<'a, T: ComponentBorrowTuple<'a>> WorldAccess<'a, T> {
+    pub unsafe fn new(world: &'a World) -> Self {
+        Self {
+            world,
+            phantom: PhantomData,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::ecs::{
-        component::Component,
         entity::Entity,
-        system::{System, SystemAccessor, SystemMut},
+        system::{System, SystemAccessor},
         world::World,
-        ComponentId,
     };
+    use crate::ecs::system::SystemMut;
 
-    #[derive(Debug)]
-    pub struct Position(i32, i32, i32);
-    #[derive(Debug)]
-    pub struct Velocity(i32, i32, i32);
+    pub struct TestSystem;
 
-    #[derive(Debug)]
-    pub struct Name(&'static str);
-
-    unsafe impl Component for Position {
-        const ID: ComponentId = 0;
-    }
-
-    unsafe impl Component for Velocity {
-        const ID: ComponentId = 1;
-    }
-
-    unsafe impl Component for Name {
-        const ID: ComponentId = 2;
-    }
-
-    pub struct PhysicsSystem;
-
-    impl<'a> SystemMut<'a> for PhysicsSystem {
-        type Global = (&'a mut Velocity,);
-        type Local = (&'a mut Position, &'a Velocity);
-
-        fn run(
-            &mut self,
-            entity: Entity,
-            components: Self::Local,
-            system_accessor: &mut SystemAccessor,
-        ) {
-            let (p, v) = components;
-            p.0 += v.0;
-            p.1 += v.1;
-            p.2 += v.2;
-            let other = Entity::new(2, 0, 0);
-            if other != entity {
-                let name = system_accessor.get_components_mut::<(&mut Velocity,)>(other);
-                println!("{:?}", name);
-            }
-        }
-    }
-
-    pub struct PhysicsSystem2;
-
-    impl<'a> System<'a> for PhysicsSystem2 {
+    impl<'a> System<'a> for TestSystem {
         type Global = ();
-        type Local = (&'a mut Position, &'a Velocity);
+        type Local = (&'a i32, &'a mut f32);
 
         fn run(
             &self,
             entity: Entity,
             components: Self::Local,
-            system_accessor: &mut SystemAccessor,
+            accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
         ) {
-            let (p, v) = components;
-            p.0 += v.0;
-            p.1 += v.1;
-            p.2 += v.2;
+            println!("{:?} {:?} {:?}", entity, components.0, components.1);
+            *components.1 *= 2.0;
         }
+    }
+
+    impl<'a> SystemMut<'a> for TestSystem {
+        type Local = (&'a i32, &'a mut f32);
+        type Global = ();
+
+        fn run(&mut self, entity: Entity, components: Self::Local, accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>) {
+            println!("{:?} {:?} {:?}", entity, components.0, components.1);
+            *components.1 *= 2.0;
+        }
+    }
+
+    #[test]
+    fn test_system() {
+        let mut world = World::new();
+        let e1 = world.push((13i32, 16i64, 14.5f32, "hello world1"));
+        let e2 = world.push((13i32, 16i64, 14.5f32, "hello world2"));
+        let e3 = world.push((13i32, 16i64, 14.5f32, "hello world3"));
+        let e4 = world.push((13i32, 16i64, 14.5f32, "hello world4"));
+        let e5 = world.push((13i32, 16i64, 14.5f32, "hello world5"));
+        let e6 = world.push((13i32, 16i64, 14.5f32, "hello world6"));
+        let mut system = TestSystem;
+        // world.run(&system);
+        // world.run_par(&system);
+        world.run_mut(&mut system);
+        println!("{:#?}", world);
     }
 
     #[test]
     fn test() {
         let mut world = World::new();
-        let e1 = world.push((Position(1, 1, 1), Velocity(1, 1, 1)));
-        let e2 = world.push((Position(2, 2, 2), Name("sheep")));
-        let e3 = world.push((Position(3, 3, 3), Velocity(3, 3, 3), Name("zombie")));
-        let e4 = world.push((Position(4, 4, 4),));
-        let e5 = world.push((Position(5, 5, 5),));
-        let e6 = world.push((Position(6, 6, 6),));
-
+        let e1 = world.push((13i32, 16i64, 14.5f32, "hello world1"));
+        let e2 = world.push((13i32, 16i64, 14.5f32, "hello world2"));
+        let e3 = world.push((13i32, 16i64, 14.5f32, "hello world3"));
+        let e4 = world.push((13i32, 16i64, 14.5f32, "hello world4"));
+        let e5 = world.push((13i32, 16i64, 14.5f32, "hello world5"));
+        let e6 = world.push((13i32, 16i64, 14.5f32, "hello world6"));
+        println!("{:#?}", world);
+        world.remove(e2);
+        world.remove(e4);
+        println!("{:#?}", world);
+        world.remove(e1);
+        world.remove(e3);
         world.remove(e5);
-        let e7 = world.push((Position(7, 7, 7),));
-        // println!("{:#?}", world);
-        // let mut physics_system = PhysicsSystem;
-        // world.run_mut(&mut physics_system);
-        let physics_system = PhysicsSystem2;
-        world.run_par(&physics_system);
-
         println!("{:#?}", world);
     }
 }

@@ -1,91 +1,117 @@
+use std::marker::PhantomData;
+
 use crate::ecs::{
-    component::ComponentSet,
     entity::Entity,
-    storage::archetype::ArchetypeChunk,
-    tuple::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
+    sort::insertion_sort_noalias,
+    tuple::{
+        ptr::PtrTuple, type_tuple::TypeTuple, ComponentBorrowTuple, ComponentRefTuple,
+        ComponentTuple,
+    },
+    types,
     world::World,
 };
 
-pub struct SystemPermissions {
-    pub read_local: ComponentSet,
-    pub write_local: ComponentSet,
-    pub read_global: ComponentSet,
-    pub write_global: ComponentSet,
+pub struct SystemAccessor<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> {
+    phantom: PhantomData<(L, G)>,
+    world: &'a World,
+    current_entity: Entity,
 }
 
-pub struct SystemAccessor<'a> {
-    pub world: &'a World,
-    pub permissions: &'a SystemPermissions,
-    current: Entity,
-}
-
-impl<'a> SystemAccessor<'a> {
-    pub fn new(world: &'a World, permissions: &'a SystemPermissions) -> Self {
+impl<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> SystemAccessor<'a, L, G> {
+    pub fn new(world: &'a World) -> Self {
         Self {
+            phantom: PhantomData,
             world,
-            permissions,
-            current: Entity::default(),
+            current_entity: Entity::default(),
         }
     }
 
-    pub fn get_components<'b, T: ComponentRefTuple<'b>>(&'b self, entity: Entity) -> Option<T> {
-        if entity == self.current
-            && !T::ValueType::COMPONENT_SET.disjoint(&self.permissions.write_local)
-        {
-            panic!("read types alias with local write components");
-        } else if !T::READ_COMPONENT_SET.subset2(
-            &self.permissions.read_global,
-            &self.permissions.write_global,
-        ) {
-            panic!("invalid read");
+    #[inline(always)]
+    pub unsafe fn update_entity(&mut self, entity: Entity) {
+        self.current_entity = entity;
+    }
+
+    pub fn has_components<T: ComponentTuple>(&self, entity: Entity) -> bool {
+        if let Some(archetype) = self.world.archetypes.get(entity.archetype_id() as usize) {
+            types::subset(T::type_ids().as_ref(), archetype.type_ids.as_ref())
         } else {
-            if let Some(archetype) = self.world.archetypes.get(entity.archetype_id() as usize) {
-                if T::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
-                    unsafe {
-                        return archetype.get_components_mut(entity);
-                    }
-                }
-            }
-            None
+            false
         }
     }
 
-    pub fn get_components_mut<'b, T: ComponentBorrowTuple<'b>>(
-        &'b mut self,
+    pub fn is_alive(&self, entity: Entity) -> bool {
+        self.world.lookup_entity(entity).is_some()
+    }
+
+    pub fn get<'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
+        &self,
         entity: Entity,
-    ) -> Option<T> {
-        if entity == self.current
-            && !T::ValueType::COMPONENT_SET
-                .disjoint2(&self.permissions.write_local, &self.permissions.read_local)
-        {
-            panic!("write types alias with local read/write components");
-        } else if !T::READ_COMPONENT_SET.subset2(
-            &self.permissions.read_global,
-            &self.permissions.write_global,
-        ) && !T::WRITE_COMPONENT_SET.subset(&self.permissions.write_global)
+    ) -> Option<T>
+    where
+        'a: 'b,
+    {
+        let mut type_ids = <T as ComponentRefTuple<'b>>::ValueType::type_ids();
+        insertion_sort_noalias(type_ids.as_mut());
+        if entity == self.current_entity
+            && !types::disjoint(type_ids.as_ref(), L::ValueType::type_ids().as_ref())
         {
             panic!("invalid read");
-        } else {
-            if let Some(archetype) = self.world.archetypes.get(entity.archetype_id() as usize) {
-                if T::ValueType::COMPONENT_SET.subset(&archetype.component_set) {
-                    unsafe {
-                        return archetype.get_components_mut(entity);
-                    }
+        } else if !types::subset(type_ids.as_ref(), G::ValueType::type_ids().as_ref()) {
+            panic!("invalid read");
+        }
+        if let Some((archetype, index)) = self.world.lookup_entity(entity) {
+            if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
+                unsafe {
+                    return Some(<T as ComponentRefTuple<'b>>::deref(
+                        ptr.offset(index as isize),
+                    ));
                 }
             }
-            None
         }
+        None
     }
 
-    pub unsafe fn set_current(&mut self, entity: Entity) {
-        self.current = entity;
+    pub fn get_mut<'b, T: ComponentBorrowTuple<'b>>(&mut self, entity: Entity) -> Option<T>
+    where
+        'a: 'b,
+    {
+        let mut type_ids = <T as ComponentBorrowTuple<'b>>::ValueType::type_ids();
+        insertion_sort_noalias(type_ids.as_mut());
+        if entity == self.current_entity
+            && !types::disjoint(type_ids.as_ref(), L::ValueType::type_ids().as_ref())
+        {
+            panic!("invalid write");
+        } else if !types::subset(
+            T::ReadType::type_ids().as_ref(),
+            G::ValueType::type_ids().as_ref(),
+        ) || !types::subset(
+            T::WriteType::type_ids().as_ref(),
+            G::WriteType::type_ids().as_ref(),
+        ) {
+            panic!("invalid write");
+        }
+        if let Some((archetype, index)) = self.world.lookup_entity(entity) {
+            if let Ok(ptr) =
+                archetype.try_as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>()
+            {
+                unsafe {
+                    return Some(T::deref(ptr.offset(index as isize)));
+                }
+            }
+        }
+        None
     }
 }
 
 pub trait System<'a> {
     type Local: ComponentBorrowTuple<'a>;
-    type Global: ComponentRefTuple<'a>;
-    fn run(&self, entity: Entity, components: Self::Local, system_accessor: &mut SystemAccessor);
+    type Global: ComponentRefTuple<'a> + ComponentBorrowTuple<'a>;
+    fn run(
+        &self,
+        entity: Entity,
+        components: Self::Local,
+        accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+    );
 }
 
 pub trait SystemMut<'a> {
@@ -95,7 +121,6 @@ pub trait SystemMut<'a> {
         &mut self,
         entity: Entity,
         components: Self::Local,
-        system_accessor: &mut SystemAccessor,
+        accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
     );
 }
-

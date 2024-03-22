@@ -1,144 +1,148 @@
 use std::time::Duration;
 
-use criterion::{black_box, criterion_group, criterion_main, Bencher, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use rayon::iter::{
+    IntoParallelIterator, IntoParallelRefIterator, IntoParallelRefMutIterator, ParallelIterator,
+};
 use serverx_core::ecs::{
-    component::Component, fibonacci, storage::archetype::ArchetypeStorage, tuple::ComponentTuple,
-    world::World, ComponentId,
+    entity::Entity,
+    storage::archetype::ArchetypeStorage,
+    system::{System, SystemAccessor},
+    world::World,
 };
 
 #[derive(Debug)]
-struct Position(i32, i32, i32);
+pub struct Position(i32, i32, i32);
 #[derive(Debug)]
-struct Velocity(i32, i32, i32);
+pub struct Velocity(i32, i32, i32);
 #[derive(Debug)]
-struct Name(&'static str);
+pub struct Name(&'static str);
 #[derive(Debug)]
-struct Dimensions(u32, u32);
+pub struct Health(f64);
 
-unsafe impl Component for Position {
-    const ID: ComponentId = 0;
-}
+impl evenio::component::Component for Position {}
+impl evenio::component::Component for Velocity {}
+impl evenio::component::Component for Name {}
+impl evenio::component::Component for Health {}
+struct Tick;
+impl evenio::event::Event for Tick {}
 
-unsafe impl Component for Velocity {
-    const ID: ComponentId = 1;
-}
-
-unsafe impl Component for Name {
-    const ID: ComponentId = 2;
-}
-
-unsafe impl Component for Dimensions {
-    const ID: ComponentId = 3;
-}
-
-pub fn vec_push(
-    vecp: &mut Vec<Position>,
-    vecv: &mut Vec<Velocity>,
-    vecn: &mut Vec<Name>,
-    vecd: &mut Vec<Dimensions>,
-    count: usize,
-) {
+pub fn evenio_push(world: &mut evenio::world::World, count: usize) {
     for _ in 0..count {
-        vecp.push(Position(1, 2, 3));
-        vecv.push(Velocity(4, 5, 6));
-        vecn.push(Name("test entity"));
-        vecd.push(Dimensions(7, 8));
+        let e = world.spawn();
+        world.insert(e, Position(1, 2, 3));
+        world.insert(e, Velocity(4, 5, 6));
+        world.insert(e, Name("foobar"));
+        world.insert(e, Health(123.456));
     }
 }
 
-pub fn vec_push_benchmark(c: &mut Criterion) {
-    c.bench_function("vec push 10000", |b| {
+pub fn evenio_bench(criterion: &mut Criterion) {
+    criterion.bench_function("evenio push 10000", |b| {
         b.iter(|| {
-            vec_push(
-                black_box(&mut Vec::new()),
-                black_box(&mut Vec::new()),
-                black_box(&mut Vec::new()),
-                black_box(&mut Vec::new()),
-                black_box(10000),
-            )
+            let mut world = evenio::world::World::new();
+            evenio_push(black_box(&mut world), black_box(10000));
+        })
+    });
+}
+fn update_positions(
+    _: evenio::prelude::Receiver<Tick>,
+    mut entities: evenio::prelude::Fetcher<(&mut Position, &Velocity)>,
+) {
+    // Loop over all entities with both the `Position` and `Velocity` components, and update their
+    // positions.
+    entities.into_par_iter().for_each(|x| {
+        let (p, v) = x;
+        p.0 += v.0;
+        p.1 += v.1;
+        p.2 += v.2;
+    });
+}
+pub fn evenio_iter_bench(criterion: &mut Criterion) {
+    let mut world = evenio::world::World::new();
+    evenio_push(&mut world, 100000);
+    criterion.bench_function("evenio world iter 100000", |b| {
+        b.iter(|| {
+            world.add_handler(update_positions);
+            world.send(Tick);
         })
     });
 }
 
-pub fn legion_push(world: &mut legion::World, count: usize) {
-    for _ in 0..count {
-        world.push((
-            Position(1, 2, 3),
-            Velocity(4, 5, 6),
-            Name("test entity"),
-            Dimensions(7, 8),
-        ));
-    }
-}
-
-pub fn legion_push_benchmark(c: &mut Criterion) {
-    let mut world = legion::World::default();
-    c.bench_function("legion push 10000", |b| {
-        b.iter(|| legion_push(&mut world, black_box(10000)))
-    });
-}
-
-fn archetype_raw_push(archetype: &mut ArchetypeStorage, count: usize) {
+pub fn world_push(world: &mut World, count: usize) {
     for _ in 0..count {
         unsafe {
-            <(Position, Velocity, Name, Dimensions) as ComponentTuple>::push_components(
-                (
-                    Position(1, 2, 3),
-                    Velocity(4, 5, 6),
-                    Name("test entity"),
-                    Dimensions(7, 8),
-                ),
-                archetype,
-            );
-        }
-    }
-}
-
-pub fn archetype_raw_push_benchmark(c: &mut Criterion) {
-    let mut archetype = ArchetypeStorage::new::<(Position, Velocity, Name, Dimensions)>(0);
-    c.bench_function("archetype raw push 10000", |b| {
-        b.iter(|| archetype_raw_push(&mut archetype, black_box(10000)))
-    });
-}
-
-fn archetype_push(archetype: &mut ArchetypeStorage, count: usize) {
-    for _ in 0..count {
-        unsafe {
-            archetype.push((
+            world.push((
                 Position(1, 2, 3),
                 Velocity(4, 5, 6),
-                Name("test entity"),
-                Dimensions(7, 8),
+                Name("foobar"),
+                Health(123.456),
             ));
         }
     }
 }
 
-pub fn archetype_push_benchmark(c: &mut Criterion) {
-    c.bench_function("archetype push 10000", |b| {
+pub struct PhysicsSystem;
+
+impl<'a> System<'a> for PhysicsSystem {
+    type Global = ();
+    type Local = (&'a Velocity, &'a mut Position);
+
+    fn run(
+        &self,
+        entity: Entity,
+        components: Self::Local,
+        accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+    ) {
+        let (v, p) = components;
+        p.0 += v.0;
+        p.1 += v.1;
+        p.2 += v.2;
+    }
+}
+
+pub fn world_iter(world: &mut World) {
+    let physics_system = PhysicsSystem;
+    world.run_par(&physics_system);
+}
+
+pub fn world_iter_bench(criterion: &mut Criterion) {
+    let mut world = World::new();
+    world_push(&mut world, 100000);
+    criterion.bench_function("world iter 100000", |b| {
         b.iter(|| {
-            let mut archetype = ArchetypeStorage::new::<(Position, Velocity, Name, Dimensions)>(0);
-            archetype_push(&mut archetype, black_box(10000));
+            world_iter(black_box(&mut world));
         })
     });
 }
 
-fn world_push(world: &mut World, count: usize) {
+pub fn world_bench(criterion: &mut Criterion) {
+    criterion.bench_function("world push 10000", |b| {
+        b.iter(|| {
+            let mut world = World::new();
+            world_push(black_box(&mut world), black_box(10000));
+        })
+    });
+}
+
+pub fn archetype_push(archetype: &mut ArchetypeStorage, count: usize) {
     for _ in 0..count {
-        world.push((
-            Position(1, 2, 3),
-            Velocity(4, 5, 6),
-            Name("test entity"),
-            Dimensions(7, 8),
-        ));
+        unsafe {
+            archetype.push((
+                Position(1, 2, 3),
+                Velocity(4, 5, 6),
+                Name("foobar"),
+                Health(123.456),
+            ));
+        }
     }
 }
 
-pub fn world_push_benchmark(c: &mut Criterion) {
-    c.bench_function("world push 10000", |b| {
+pub fn archetype_bench(criterion: &mut Criterion) {
+    criterion.bench_function("archetype push 10000", |b| {
         b.iter(|| {
-            let mut world = black_box(World::new());
-            world_push(&mut world, black_box(10000));
+            let mut archetype = ArchetypeStorage::new::<(Position, Velocity, Name, Health)>(0);
+            archetype_push(black_box(&mut archetype), black_box(10000));
         })
     });
 }
@@ -146,7 +150,8 @@ pub fn world_push_benchmark(c: &mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
-    targets = world_push_benchmark, archetype_push_benchmark, legion_push_benchmark
-    // targets = vec_push_benchmark, archetype_raw_push_benchmark, archetype_push_benchmark, world_push_benchmark, legion_push_benchmark
+    targets = world_iter_bench, evenio_iter_bench
+    // targets = world_bench, evenio_bench, world_iter_bench
+    // targets = type_sort_benchmark
 );
 criterion_main!(benches);
