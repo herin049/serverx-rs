@@ -1,0 +1,8 @@
+[package]
+name = "serverx-world"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serverx-block = { path = "../block" }
+serverx-common = { path = "../common" }

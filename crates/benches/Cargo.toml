@@ -1,0 +1,14 @@
+[package]
+name = "serverx-benches"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dev-dependencies]
+criterion = "0.5.1"
+serverx-block = { path = "../block" }
+
+[[bench]]
+name = "benchmark"
+harness = false

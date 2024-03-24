@@ -1,0 +1,29 @@
+use std::{fs::File, io, path::Path, sync::Arc};
+use tracing::instrument;
+
+use serverx_nbt as nbt;
+use serverx_nbt::decode::NbtDecodeErr;
+
+pub struct Resources {
+    pub registry_data: Arc<nbt::Tag>,
+}
+
+pub enum LoadResourcesErr {
+    IoErr(io::Error),
+    NbtErr(NbtDecodeErr),
+}
+
+pub fn load_registry_data(resource_path: &Path) -> Result<nbt::Tag, LoadResourcesErr> {
+    let registry_path = resource_path.join("registries.nbt");
+    let mut file = File::open(registry_path).map_err(|err| LoadResourcesErr::IoErr(err))?;
+    nbt::io::read_tag(&mut file).map_err(|err| LoadResourcesErr::NbtErr(err))
+}
+
+#[instrument]
+pub fn load(resource_path: &Path) -> Result<Resources, LoadResourcesErr> {
+    tracing::debug!("loading resources");
+    let registry_data = load_registry_data(resource_path)?;
+    Ok(Resources {
+        registry_data: Arc::new(registry_data),
+    })
+}

@@ -1,0 +1,131 @@
+pub const BIOME_COUNT: usize = {{ biome_count }};
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Biome {
+    {% for b in biomes %}
+    {{ pascalcase(b["name"]) }},
+    {% endfor %}
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct InvalidBiomeErr;
+
+impl TryFrom<u64> for Biome {
+    type Error = InvalidBiomeErr;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            {% for b in biomes %}
+            {{ b["id"] }} => Ok(Biome::{{ pascalcase(b["name"]) }}),
+            {% endfor %}
+            _ => Err(InvalidBiomeErr)
+        }
+    }
+}
+
+impl Biome {
+    pub fn id(&self) -> u64 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["id"] }},
+            {% endfor %}
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => "{{ b["name"] }}",
+            {% endfor %}
+        }
+    }
+    
+    pub fn has_precipitation(&self) -> bool {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ "true" if b["has_precipitation"] else "false" }},
+            {% endfor %}
+        }
+    }
+    
+    pub fn temperature(&self) -> f64 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["temperature"] }},
+            {% endfor %}
+        }
+    }
+
+    pub fn fog_color(&self) -> u32 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["effects"]["fog_color"] }},
+            {% endfor %}
+        }
+    }
+    
+    pub fn water_color(&self) -> u32 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["effects"]["water_color"] }},
+            {% endfor %}
+        }
+    }
+    
+    pub fn water_fog_color(&self) -> u32 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["effects"]["water_fog_color"] }},
+            {% endfor %}
+        }
+    }
+    
+    pub fn sky_color(&self) -> u32 {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => {{ b["effects"]["sky_color"] }},
+            {% endfor %}
+        }
+    }
+    
+    pub fn foliage_color(&self) -> Option<u32> {
+        match self {
+            {% for b in biomes %}
+            {% set c = b["effects"].get("foliage_color") %}
+            {% if c != None %}
+            Biome::{{ pascalcase(b["name"]) }} => Some({{ c }}),
+            {% else %}
+            Biome::{{ pascalcase(b["name"]) }} => None,
+            {% endif %}
+            {% endfor %}
+        }
+    }
+    
+    pub fn grass_color(&self) -> Option<u32> {
+        match self {
+            {% for b in biomes %}
+            {% set c = b["effects"].get("grass_color") %}
+            {% if c != None %}
+            Biome::{{ pascalcase(b["name"]) }} => Some({{ c }}),
+            {% else %}
+            Biome::{{ pascalcase(b["name"]) }} => None,
+            {% endif %}
+            {% endfor %}
+        }
+    }
+
+    pub fn grass_color_modifier(&self) -> GrassColorModifier {
+        match self {
+            {% for b in biomes %}
+            Biome::{{ pascalcase(b["name"]) }} => GrassColorModifier::{{ pascalcase(b["effects"]["grass_color_modifier"]) }},
+            {% endfor %}
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GrassColorModifier {
+    {% for m in grass_color_modifiers %}
+    {{ pascalcase(m) }},
+    {% endfor %}
+}

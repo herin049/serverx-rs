@@ -1,0 +1,15 @@
+[package]
+name = "serverx-protocol"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serverx-macros = { path = "../macros" }
+serverx-common = { path = "../common" }
+serverx-nbt = { path = "../nbt" }
+uuid = { version = "1.8.0", features = ["v4"] }
+either = "1.10.0"
+serde_json = "1.0.114"
+cfb8 = "0.8.1"
+aes = "0.8.4"
+tokio = { version = "1.36.0", features = ["full"] }

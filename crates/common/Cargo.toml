@@ -1,0 +1,10 @@
+[package]
+name = "serverx-common"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+smallvec = "1.13.2"
+itertools = "0.12.1"
+rand = "0.9.0-alpha.1"
+hashbrown = "0.14.3"

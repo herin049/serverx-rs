@@ -1,0 +1,21 @@
+[package]
+name = "serverx-macros"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+syn = { version="1.0.109", features=["full"] }
+darling = "0.20.8"
+lazy_static = "1.4.0"
+regex = "1.7.1"
+quote = "1.0.23"
+proc-macro2 = "1.0.51"
+convert_case = "0.6.0"
+serde = "1.0.136"
+serde_derive = "1.0.136"
+serde_yaml = "0.9"
+itertools = "0.10.5"
+
+[lib]
+proc-macro = true
+

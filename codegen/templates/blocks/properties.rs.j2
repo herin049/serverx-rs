@@ -1,0 +1,8 @@
+{% for name, values in properties.items() %}
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum {{ name }} {
+    {% for v in values %}
+    {{ v }},
+    {% endfor %}
+}
+{% endfor %}

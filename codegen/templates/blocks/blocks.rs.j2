@@ -1,0 +1,20 @@
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Block {
+    {% for b in blocks %}
+    {% if b.get("properties", []) |length != 0 %}
+    {{ pascalcase(b["name"]) }} {
+        {% for p in b["properties"] %}
+        {% if p["type"] == "integer" %}
+        {{ p["name"] }}: i32,
+        {% elif p["type"] == "boolean" %}
+        {{ p["name"] }}: bool,
+        {% else %}
+        {{ p["name"] }}: {{ p["enum_name"] }},
+        {% endif %}
+        {% endfor %}
+    },
+    {% else %}
+    {{ pascalcase(b["name"]) }},
+    {% endif %}
+    {% endfor %}
+}

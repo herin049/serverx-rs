@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "macros", "server"]
+members = [ "crates/benches", "crates/block", "crates/common", "crates/ecs", "crates/game", "crates/macros", "crates/nbt", "crates/protocol", "crates/server", "crates/world"]

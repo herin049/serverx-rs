@@ -1,0 +1,10 @@
+[package]
+name = "serverx-ecs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slab = "0.4.9"
+itertools = "0.12.1"
+serverx-macros = { path = "../macros" }
+rayon = "1.10.0"
