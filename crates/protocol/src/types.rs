@@ -1,16 +1,18 @@
 use std::{
     io::{Read, Seek, SeekFrom, Write},
+    iter, slice,
     sync::Arc,
 };
 
 use either::Either;
+use serverx_common::{collections::bit_vec::BitVec, identifier::Identifier};
+use serverx_nbt::{
+    decode::{BasicResourceTracker, NbtDecode, NbtDecodeErr},
+    encode::{NbtEncode, NbtEncodeErr},
+    tag::{TagType, MAX_RECURSION_DEPTH, MAX_TAG_SIZE},
+    Tag, TagRoot,
+};
 use uuid::Uuid;
-use serverx_common::collections::bit_vec::BitVec;
-use serverx_common::identifier::Identifier;
-use serverx_nbt::{Tag, TagRoot};
-use serverx_nbt::decode::{BasicResourceTracker, NbtDecode, NbtDecodeErr};
-use serverx_nbt::encode::{NbtEncode, NbtEncodeErr};
-use serverx_nbt::tag::{MAX_RECURSION_DEPTH, MAX_TAG_SIZE, TagType};
 
 use crate::{
     decode::{
@@ -77,7 +79,9 @@ impl ProtoDecode for bool {
 
 pub struct VarInt;
 
-pub const MAX_VAR_INT_LEN: usize = 5;
+impl VarInt {
+    pub const MAX_BYTES: usize = 5;
+}
 
 impl ProtoEncode for VarInt {
     type Repr = i32;
@@ -100,7 +104,7 @@ impl ProtoDecode for VarInt {
         _alloc_tracker: &mut A,
     ) -> Result<Self::Repr, ProtoDecodeErr> {
         let mut result: Self::Repr = 0;
-        for i in 0..MAX_VAR_INT_LEN {
+        for i in 0..VarInt::MAX_BYTES {
             let curr_byte = Self::Repr::from(<u8 as ProtoDecode>::decode(reader, _alloc_tracker)?);
             result |= (curr_byte & 0x7f) << (i * 7);
             if (curr_byte >> 7) == 0 {
@@ -113,7 +117,9 @@ impl ProtoDecode for VarInt {
 
 pub struct VarLong;
 
-pub const MAX_VAR_LONG_LEN: usize = 10;
+impl VarLong {
+    pub const MAX_BYTES: usize = 10;
+}
 
 impl ProtoEncode for VarLong {
     type Repr = i64;
@@ -136,7 +142,7 @@ impl ProtoDecode for VarLong {
         _alloc_tracker: &mut A,
     ) -> Result<Self::Repr, ProtoDecodeErr> {
         let mut result: Self::Repr = 0;
-        for i in 0..MAX_VAR_LONG_LEN {
+        for i in 0..VarLong::MAX_BYTES {
             let curr_byte = Self::Repr::from(<u8 as ProtoDecode>::decode(reader, _alloc_tracker)?);
             result |= (curr_byte & 0x7f) << (i * 7);
             if (curr_byte >> 7) == 0 {
@@ -350,7 +356,36 @@ impl<'a, T: ProtoEncode> ProtoEncodeSeq for &'a [T] {
         if data_len > MAX_VEC_LEN {
             return Err(ProtoEncodeErr::SeqTooLong(data_len, MAX_VEC_LEN));
         }
-        let len = <VarInt as ProtoDecode>::Repr::try_from(data_len)
+        let len = <VarInt as ProtoEncode>::Repr::try_from(data_len)
+            .map_err(|_| ProtoEncodeErr::InvalidSeqLen(data_len))?;
+        VarInt::encode(&len, writer)?;
+        Ok(data_len)
+    }
+
+    fn encode_seq<W: Write + Seek>(
+        data: &Self::Repr,
+        writer: &mut W,
+        len: usize,
+    ) -> Result<(), ProtoEncodeErr> {
+        for e in *data {
+            T::encode(e, writer)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T: ProtoEncode> ProtoEncodeSeq for slice::Iter<'a, T> {
+    type Repr = slice::Iter<'a, T::Repr>;
+
+    fn encode_len<W: Write + Seek>(
+        data: &Self::Repr,
+        writer: &mut W,
+    ) -> Result<usize, ProtoEncodeErr> {
+        let data_len = data.len();
+        if data_len > MAX_VEC_LEN {
+            return Err(ProtoEncodeErr::SeqTooLong(data_len, MAX_VEC_LEN));
+        }
+        let len = <VarInt as ProtoEncode>::Repr::try_from(data_len)
             .map_err(|_| ProtoEncodeErr::InvalidSeqLen(data_len))?;
         VarInt::encode(&len, writer)?;
         Ok(data_len)

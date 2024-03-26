@@ -4,7 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use smallvec::{SmallVec, smallvec};
+use smallvec::{smallvec, SmallVec};
 
 #[derive(Clone)]
 pub struct BitVec {
@@ -58,7 +58,10 @@ impl BitVec {
 
     pub fn from_raw_parts(data: Vec<u64>) -> Self {
         let len = data.len() * 8;
-        Self { data: SmallVec::from(data), len }
+        Self {
+            data: SmallVec::from(data),
+            len,
+        }
     }
 
     pub fn len(&self) -> usize {

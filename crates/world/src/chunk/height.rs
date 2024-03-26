@@ -1,9 +1,12 @@
-use std::fmt::{Debug, Formatter};
-use std::marker::PhantomData;
+use std::{
+    fmt::{Debug, Formatter},
+    marker::PhantomData,
+};
+
 use serverx_block::states::BlockState;
-use crate::chunk::Chunk;
-use crate::chunk::section::{BLOCK_SECTION_SIZE, BLOCK_SECTION_WIDTH};
 use serverx_common::collections::packed_vec::PackedVec;
+
+use crate::chunk::Chunk;
 
 pub trait HeightmapPred {
     fn test(block_state: BlockState) -> bool;
@@ -27,7 +30,7 @@ impl HeightmapPred for WorldSurfacePred {
 
 pub struct Heightmap<P: HeightmapPred> {
     phantom: PhantomData<P>,
-    heights: PackedVec
+    heights: PackedVec,
 }
 
 impl<P: HeightmapPred> Heightmap<P> {
@@ -35,8 +38,12 @@ impl<P: HeightmapPred> Heightmap<P> {
         let height_bits = (u64::BITS as u64) - ((height + 1).leading_zeros() as u64);
         Self {
             phantom: PhantomData,
-            heights: PackedVec::zeros(height_bits as usize, BLOCK_SECTION_SIZE)
+            heights: PackedVec::zeros(height_bits as usize, Chunk::WIDTH),
         }
+    }
+
+    pub fn data(&self) -> &[u64] {
+        self.heights.data().as_slice()
     }
 
     pub fn sync(&mut self, chunk: &Chunk) {
@@ -45,24 +52,24 @@ impl<P: HeightmapPred> Heightmap<P> {
             if !section.is_empty() {
                 break;
             }
-            height_range.0 += BLOCK_SECTION_WIDTH;
+            height_range.0 += Chunk::WIDTH;
         }
         for section in chunk.sections().iter().rev() {
             if !section.is_empty() {
                 break;
             }
-            height_range.1 -= BLOCK_SECTION_WIDTH;
+            height_range.1 -= Chunk::WIDTH;
         }
         if height_range.0 >= height_range.1 {
             height_range = (0, 0);
         }
 
-        for x in 0..BLOCK_SECTION_WIDTH {
-            for z in 0..BLOCK_SECTION_WIDTH {
+        for x in 0..Chunk::WIDTH {
+            for z in 0..Chunk::WIDTH {
                 let index: usize = (x & 0xf) | ((z & 0xf) << 4);
                 let mut set = false;
                 for y in (height_range.0..height_range.1).rev() {
-                    if P::test(chunk.get_block((x, y, z)))  {
+                    if P::test(chunk.get_block((x, y, z))) {
                         self.heights.set(index, (y + 1) as u64);
                         set = true;
                         break;
@@ -80,7 +87,7 @@ impl<P: HeightmapPred> Heightmap<P> {
         let update_height = pos.1 + 1;
         let map_height = self.heights.get(index).unwrap() as usize;
         if update_height > map_height {
-            if P::test(state)  {
+            if P::test(state) {
                 self.heights.set(index, update_height as u64);
             }
         } else if update_height == map_height {

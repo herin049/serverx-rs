@@ -1,11 +1,13 @@
-use serverx_macros::identifier;
-use tracing::instrument;
-use serverx_protocol::v765::clientbound::{FeatureFlags, RegistryData, ServerFinishConfiguration, UpdateTags};
 use serverx_common::identifier;
+use serverx_macros::identifier;
+use serverx_protocol::v765::clientbound::{
+    FeatureFlags, RegistryData, ServerFinishConfiguration, UpdateTags,
+};
+use tracing::instrument;
 
 use crate::{
     client::{status::ClientStatus, Client},
-    network::{brand::make_server_brand_message},
+    network::brand::make_server_brand_message,
     server::Server,
 };
 

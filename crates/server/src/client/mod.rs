@@ -10,9 +10,7 @@ use serverx_protocol::packet::{ConnectionState, Packet};
 use slab::Slab;
 use uuid::Uuid;
 
-use crate::{
-    client::{profile::Profile, status::ClientStatus},
-};
+use crate::client::{profile::Profile, status::ClientStatus};
 
 pub struct Clients {
     pub clients: Slab<Client>,

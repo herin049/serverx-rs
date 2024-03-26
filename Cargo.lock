@@ -907,6 +907,13 @@ dependencies = [
 [[package]]
 name = "serverx-game"
 version = "0.1.0"
+dependencies = [
+ "hashbrown",
+ "rayon",
+ "serverx-block",
+ "serverx-ecs",
+ "serverx-world",
+]
 
 [[package]]
 name = "serverx-macros"
@@ -940,9 +947,11 @@ dependencies = [
  "cfb8",
  "either",
  "serde_json",
+ "serverx-block",
  "serverx-common",
  "serverx-macros",
  "serverx-nbt",
+ "serverx-world",
  "tokio",
  "uuid",
 ]
@@ -978,6 +987,8 @@ version = "0.1.0"
 dependencies = [
  "serverx-block",
  "serverx-common",
+ "serverx-macros",
+ "serverx-nbt",
 ]
 
 [[package]]

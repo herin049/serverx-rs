@@ -34,7 +34,7 @@ struct EnumOpts {
 #[derive(FromVariant, Default)]
 #[darling(default, attributes(proto))]
 struct VariantOpts {
-    tag: Option<usize>,
+    tag: Option<i64>,
 }
 
 pub fn proto_encode_macro_impl(input: TokenStream) -> TokenStream {
@@ -82,7 +82,7 @@ pub fn proto_encode_macro_enum(input: DeriveInput, data_enum: DataEnum) -> Token
         .unwrap_or(quote! { VarInt });
     let encode_arms = data_enum.variants.iter().enumerate().map(|(i, e)| {
         let variant_opts = VariantOpts::from_variant(e).expect("invalid variant attributes");
-        let tag = TokenStream::from_str(&format!("&{}", variant_opts.tag.unwrap_or(i))).unwrap();
+        let tag = TokenStream::from_str(&format!("&{}", variant_opts.tag.unwrap_or(i as i64))).unwrap();
         let tag_expr = parse_quote! { #tag };
         let writer: Expr = parse_quote! { writer };
         encode_variant_impl(name, e, &enum_repr, &tag_expr, &writer)
@@ -180,7 +180,7 @@ pub fn proto_decode_macro_enum(input: DeriveInput, data_enum: DataEnum) -> Token
 
     let decode_arms = data_enum.variants.iter().enumerate().map(|(i, e)| {
         let variant_opts = VariantOpts::from_variant(e).expect("invalid variant attributes");
-        let tag = TokenStream::from_str(&format!("{}", variant_opts.tag.unwrap_or(i))).unwrap();
+        let tag = TokenStream::from_str(&format!("{}", variant_opts.tag.unwrap_or(i as i64))).unwrap();
         let tag_expr: Expr = parse_quote! { #tag };
         let reader: Expr = parse_quote! { reader };
         let alloc_tracker: Expr = parse_quote! { alloc_tracker };
@@ -295,7 +295,7 @@ pub fn proto_macro_enum(input: DeriveInput, data_enum: DataEnum) -> TokenStream 
         .unwrap_or(quote! { VarInt });
     let encode_arms = data_enum.variants.iter().enumerate().map(|(i, e)| {
         let variant_opts = VariantOpts::from_variant(e).expect("invalid variant attributes");
-        let tag = TokenStream::from_str(&format!("&{}", variant_opts.tag.unwrap_or(i))).unwrap();
+        let tag = TokenStream::from_str(&format!("&{}", variant_opts.tag.unwrap_or(i as i64))).unwrap();
         let tag_expr = parse_quote! { #tag };
         let writer: Expr = parse_quote! { writer };
         encode_variant_impl(name, e, &enum_repr, &tag_expr, &writer)
@@ -303,7 +303,7 @@ pub fn proto_macro_enum(input: DeriveInput, data_enum: DataEnum) -> TokenStream 
 
     let decode_arms = data_enum.variants.iter().enumerate().map(|(i, e)| {
         let variant_opts = VariantOpts::from_variant(e).expect("invalid variant attributes");
-        let tag = TokenStream::from_str(&format!("{}", variant_opts.tag.unwrap_or(i))).unwrap();
+        let tag = TokenStream::from_str(&format!("{}", variant_opts.tag.unwrap_or(i as i64))).unwrap();
         let tag_expr: Expr = parse_quote! { #tag };
         let reader: Expr = parse_quote! { reader };
         let alloc_tracker: Expr = parse_quote! { alloc_tracker };

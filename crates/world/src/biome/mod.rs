@@ -14,5 +14,6 @@ mod tests {
     fn test() {
         let b = Biome::ColdOcean;
         println!("{:?} {} {} {}", b, b.name(), b.id(), b.has_precipitation());
+        println!("{} {}", Biome::COUNT, Biome::BITS);
     }
 }

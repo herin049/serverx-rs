@@ -3,7 +3,6 @@ use std::{
     io::{Read, Seek, Write},
 };
 
-
 #[derive(Clone)]
 pub struct Identifier {
     str: String,
@@ -43,7 +42,6 @@ impl Identifier {
         &self.str
     }
 }
-
 
 pub enum TryFromStrErr {
     MissingTag,

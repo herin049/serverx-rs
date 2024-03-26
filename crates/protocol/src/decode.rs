@@ -62,6 +62,9 @@ pub enum ProtoDecodeErr {
     MalformedJson(String),
     InvalidIdentifier,
     NbtDecodeErr(NbtDecodeErr),
+    InvalidBlock,
+    InvalidBiome,
+    ChunkDecodeErr,
 }
 
 impl Display for ProtoDecodeErr {
@@ -99,6 +102,9 @@ impl Display for ProtoDecodeErr {
             ProtoDecodeErr::MalformedJson(json_str) => write!(f, "malformed json: {}", json_str),
             ProtoDecodeErr::InvalidIdentifier => write!(f, "invalid identifier"),
             ProtoDecodeErr::NbtDecodeErr(err) => write!(f, "nbt decode error: {}", err),
+            ProtoDecodeErr::InvalidBlock => write!(f, "invalid block"),
+            ProtoDecodeErr::InvalidBiome => write!(f, "invalid biome"),
+            ProtoDecodeErr::ChunkDecodeErr => write!(f, "chunk decode error"),
         }
     }
 }

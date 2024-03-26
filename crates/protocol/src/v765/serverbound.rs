@@ -3,12 +3,12 @@ use std::{
     io::{Read, Seek, Write},
 };
 
+use serverx_common::identifier::Identifier;
 use serverx_macros::{Packet, ProtoDecode, ProtoEncode};
 use uuid::Uuid;
-use serverx_common::identifier::Identifier;
-use crate::types::*;
-use crate::v765::types::*;
+
 use crate as protocol;
+use crate::{types::*, v765::types::*};
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
 #[packet(0x00, ServerBound, Handshake)]

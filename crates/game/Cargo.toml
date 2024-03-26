@@ -4,3 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+serverx-ecs = { path = "../ecs" }
+serverx-world = { path = "../world" }
+serverx-block = { path = "../block" }
+rayon = "1.10.0"
+hashbrown = "0.14.3"

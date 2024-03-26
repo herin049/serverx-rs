@@ -1,10 +1,15 @@
 use std::io::{Read, Seek, Write};
-use crate::decode::{AllocTracker, ProtoDecodeErr};
-use crate::encode::ProtoEncodeErr;
-use crate::packet::{ConnectionState, decode_packet_impl, encode_packet_impl, Packet, PacketDecoder, PacketDirection, PacketEncoder};
-use crate::v765::clientbound::*;
-use crate::v765::serverbound::*;
+
 use crate as protocol;
+use crate::{
+    decode::{AllocTracker, ProtoDecodeErr},
+    encode::ProtoEncodeErr,
+    packet::{
+        decode_packet_impl, encode_packet_impl, ConnectionState, Packet, PacketDecoder,
+        PacketDirection, PacketEncoder,
+    },
+    v765::{clientbound::*, serverbound::*},
+};
 pub const PROTO_NAME: &'static str = "1.20.4";
 pub const PROTO_VER: i32 = 765;
 

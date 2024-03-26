@@ -1,14 +1,20 @@
 use std::fmt::{Debug, Formatter};
 
+use serverx_protocol::{
+    io::{AsyncPacketReader, AsyncPacketWriter, PacketReadErr, PacketWriteErr},
+    packet::{
+        ConnectionState::Login,
+        PacketDirection::{ClientBound, ServerBound},
+    },
+    v765::{
+        clientbound::LoginSuccess,
+        serverbound::{LoginAck, LoginStart},
+        PacketDecoderImpl, PacketEncoderImpl,
+    },
+};
 use tokio::net::TcpStream;
 use tracing::instrument;
 use uuid::Uuid;
-use serverx_protocol::io::{AsyncPacketReader, AsyncPacketWriter, PacketReadErr, PacketWriteErr};
-use serverx_protocol::packet::ConnectionState::Login;
-use serverx_protocol::packet::PacketDirection::{ClientBound, ServerBound};
-use serverx_protocol::v765::clientbound::LoginSuccess;
-use serverx_protocol::v765::{PacketDecoderImpl, PacketEncoderImpl};
-use serverx_protocol::v765::serverbound::{LoginAck, LoginStart};
 
 use crate::client::profile::{Profile, ProfileErr};
 

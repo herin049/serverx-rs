@@ -6,6 +6,9 @@ pub struct PackedVec {
     len: usize,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct InvalidPackedDataError;
+
 impl PackedVec {
     pub fn new(elm_size: usize) -> Self {
         Self {
@@ -37,6 +40,17 @@ impl PackedVec {
             data,
             elm_size,
             len,
+        }
+    }
+
+    #[inline(always)]
+    pub fn try_from_raw_parts(data: Vec<u64>, elm_size: usize, len: usize) -> Result<Self, InvalidPackedDataError> {
+        let elm_per_int = (u64::BITS as usize) / elm_size;
+        let data_cap = data.len() * elm_per_int;
+        if data_cap < len || data_cap >= len + elm_per_int {
+            Err(InvalidPackedDataError)
+        } else {
+            Ok(Self::from_raw_parts(data, elm_size, len))
         }
     }
 

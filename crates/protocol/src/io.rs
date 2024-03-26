@@ -14,7 +14,7 @@ use crate::{
     decode::{BasicAllocTracker, ProtoDecode, ProtoDecodeErr},
     encode::{ProtoEncode, ProtoEncodeErr},
     packet::{ConnectionState, Packet, PacketDecoder, PacketDirection, PacketEncoder},
-    types::{VarInt, MAX_VAR_INT_LEN},
+    types::VarInt,
 };
 
 pub const DEFAULT_PACKET_LIMIT: usize = 1 << 21 - 1;
@@ -200,19 +200,20 @@ impl AsyncPacketWriter {
         } else if len > self.packet_buf.len() {
             Err(PacketWriteErr::Unknown)
         } else {
-            let mut encoded_len = [0u8; MAX_VAR_INT_LEN];
+            let mut encoded_len = [0u8; VarInt::MAX_BYTES];
             let p = {
                 let mut cursor = Cursor::new(encoded_len.as_mut_slice());
                 VarInt::encode(&(len as i32), &mut cursor)
                     .map_err(|err| PacketWriteErr::EncodeErr(err))?;
                 cursor.position() as usize
             };
-            let buf_offset = MAX_VAR_INT_LEN - p;
-            (&mut self.packet_buf[buf_offset..MAX_VAR_INT_LEN]).copy_from_slice(&encoded_len[..p]);
+            let buf_offset = VarInt::MAX_BYTES - p;
+            (&mut self.packet_buf[buf_offset..VarInt::MAX_BYTES])
+                .copy_from_slice(&encoded_len[..p]);
             let data_slice = self
                 .packet_buf
                 .as_mut_slice()
-                .get_mut(buf_offset..(MAX_VAR_INT_LEN + len))
+                .get_mut(buf_offset..(VarInt::MAX_BYTES + len))
                 .ok_or(PacketWriteErr::Unknown)?;
             if let Some(encryptor) = self.encryptor.as_mut() {
                 panic!("encryption not supported");
@@ -232,13 +233,13 @@ impl AsyncPacketWriter {
         packet: &dyn Packet,
     ) -> Result<(), PacketWriteErr> {
         let mut vec_writer =
-            VecWriter::new(&mut self.packet_buf, MAX_VAR_INT_LEN, self.packet_limit);
+            VecWriter::new(&mut self.packet_buf, VarInt::MAX_BYTES, self.packet_limit);
         let packet_id = packet.id();
         VarInt::encode(&packet_id, &mut vec_writer)
             .map_err(|err| PacketWriteErr::EncodeErr(err))?;
         S::encode_packet(packet, packet_id, direction, state, &mut vec_writer)
             .map_err(|err| PacketWriteErr::EncodeErr(err))?;
-        let packet_len = vec_writer.offset - MAX_VAR_INT_LEN;
+        let packet_len = vec_writer.offset - VarInt::MAX_BYTES;
         self.write_frame(writer, packet_len).await
     }
 }

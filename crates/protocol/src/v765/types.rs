@@ -1,10 +1,11 @@
 use std::io::{Read, Seek, Write};
-use serverx_common::identifier::Identifier;
 
+use serverx_common::{collections::bit_vec::BitVec, identifier::Identifier};
 use serverx_macros::{ProtoDecode, ProtoEncode};
+use serverx_nbt as nbt;
 
-use crate::types::*;
 use crate as protocol;
+use crate::types::*;
 
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
 #[proto(enum_repr = "VarInt")]
@@ -58,4 +59,77 @@ pub struct RegistryEntry {
     pub tag_name: Identifier,
     #[proto(repr = "Vec<VarInt>")]
     pub tag_entries: Vec<i32>,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct BlockEntityRecord {
+    pub pos: u8,
+    pub height: i16,
+    #[proto(repr = "VarInt")]
+    pub entity_type: i32,
+    #[proto(repr = "nbt::TagRoot")]
+    pub entity_data: nbt::Tag,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct ChunkLighting {
+    pub sky_light_mask: BitVec,
+    pub block_light_mask: BitVec,
+    pub empty_sky_light_mask: BitVec,
+    pub empty_block_light_mask: BitVec,
+    pub sky_light_sections: Vec<LightingArray>,
+    pub block_light_sections: Vec<LightingArray>,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct LightingArray {
+    #[proto(exact_len = 2048)]
+    pub data: Vec<u8>,
+}
+
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+#[proto(enum_repr = "u8")]
+pub enum GameMode {
+    #[proto(tag = 0)]
+    Survival,
+    #[proto(tag = 1)]
+    Creative,
+    #[proto(tag = 2)]
+    Adventure,
+    #[proto(tag = 3)]
+    Spectator,
+}
+
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+#[proto(enum_repr = "i8")]
+pub enum LastGameMode {
+    #[proto(tag = -1)]
+    Undefined,
+    #[proto(tag = 0)]
+    Survival,
+    #[proto(tag = 1)]
+    Creative,
+    #[proto(tag = 2)]
+    Adventure,
+    #[proto(tag = 3)]
+    Spectator,
+}
+
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+pub struct DeathLocation {
+    pub dimension: Identifier,
+    #[proto(repr = "Position")]
+    pub position: (i32, i32, i32)
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+#[proto(enum_repr = "u8")]
+pub enum Difficulty {
+    Peaceful,
+    Easy,
+    Normal,
+    Hard
 }

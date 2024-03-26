@@ -1,8 +1,8 @@
 use std::{fs::File, io, path::Path, sync::Arc};
-use tracing::instrument;
 
 use serverx_nbt as nbt;
 use serverx_nbt::decode::NbtDecodeErr;
+use tracing::instrument;
 
 pub struct Resources {
     pub registry_data: Arc<nbt::Tag>,

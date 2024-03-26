@@ -8,10 +8,13 @@ use slab::Slab;
 
 use crate::{
     entity::Entity,
-    sort::insertion_sort,
+    sort::{insertion_sort, insertion_sort_noalias},
     storage::archetype::{ArchetypeStorage, DebugArchetypeEntry},
     system::{System, SystemAccessor, SystemMut},
-    tuple::{type_tuple::TypeTuple, ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
+    tuple::{
+        ptr::PtrTuple, type_tuple::TypeTuple, ComponentBorrowTuple, ComponentRefTuple,
+        ComponentTuple,
+    },
     types, ArchetypeId, ArchetypeIndex,
 };
 
@@ -74,6 +77,57 @@ impl World {
                     .push_entity(values)
             },
         }
+    }
+
+    pub fn has_components<T: ComponentTuple>(&self, entity: Entity) -> bool {
+        if let Some(archetype) = self.archetypes.get(entity.archetype_id() as usize) {
+            types::subset(T::type_ids().as_ref(), archetype.type_ids.as_ref())
+        } else {
+            false
+        }
+    }
+
+    pub fn is_alive(&self, entity: Entity) -> bool {
+        self.lookup_entity(entity).is_some()
+    }
+
+    pub fn get<'a, 'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
+        &'a self,
+        entity: Entity,
+    ) -> Option<T>
+    where
+        'a: 'b,
+    {
+        let mut type_ids = <T as ComponentRefTuple<'b>>::ValueType::type_ids();
+        insertion_sort_noalias(type_ids.as_mut());
+        if let Some((archetype, index)) = self.lookup_entity(entity) {
+            if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
+                unsafe {
+                    return Some(<T as ComponentRefTuple<'b>>::deref(
+                        ptr.offset(index as isize),
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn get_mut<'a, 'b, T: ComponentBorrowTuple<'b>>(&mut self, entity: Entity) -> Option<T>
+    where
+        'a: 'b,
+    {
+        let mut type_ids = <T as ComponentRefTuple<'b>>::ValueType::type_ids();
+        insertion_sort_noalias(type_ids.as_mut());
+        if let Some((archetype, index)) = self.lookup_entity(entity) {
+            if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
+                unsafe {
+                    return Some(<T as ComponentBorrowTuple<'b>>::deref(
+                        ptr.offset(index as isize),
+                    ));
+                }
+            }
+        }
+        None
     }
 
     pub fn run_par<'a, S: System<'a> + Sync>(&'a mut self, system: &S)

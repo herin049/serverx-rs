@@ -4,13 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use serverx_macros::{Packet, ProtoDecode, ProtoEncode};
-use uuid::Uuid;
 use serverx_common::identifier::Identifier;
-use crate::v765::types::*;
-use crate::types::*;
-use crate as protocol;
+use serverx_macros::{Packet, ProtoDecode, ProtoEncode};
 use serverx_nbt as nbt;
+use uuid::Uuid;
+
+use crate as protocol;
+use crate::{types::*, v765::types::*};
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
 #[packet(0x00, ClientBound, Status)]
@@ -132,6 +132,7 @@ pub struct FeatureFlags {
 pub struct UpdateTags {
     pub tags: Vec<RegistryTag>,
 }
+
 // Game join
 // Difficulty
 // Play abilities
@@ -155,6 +156,61 @@ pub struct UpdateTags {
 // Entity Attributes
 // Advancement Update
 //
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x25, ClientBound, Play)]
+pub struct ChangeDifficulty {
+    pub difficulty: Difficulty,
+    pub locked: bool
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x25, ClientBound, Play)]
+pub struct ChunkDataAndLight {
+    pub x: i32,
+    pub z: i32,
+    #[proto(repr = "nbt::TagRoot")]
+    pub heightmaps: nbt::Tag,
+    pub chunk_data: Vec<u8>,
+    pub block_entities: Vec<BlockEntityRecord>,
+    pub chunk_lighting: ChunkLighting,
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x29, ClientBound, Play)]
+pub struct GameJoin {
+    pub entity_id: i32,
+    pub is_hardcord: bool,
+    pub dimensions: Vec<Identifier>,
+    #[proto(repr = "VarInt")]
+    pub max_players: i32,
+    #[proto(repr = "VarInt")]
+    pub view_distance: i32,
+    #[proto(repr = "VarInt")]
+    pub sim_distance: i32,
+    pub reduced_debug: bool,
+    pub enable_respawn: bool,
+    pub limited_crafting: bool,
+    pub dimension_type: Identifier,
+    pub dimension_name: Identifier,
+    pub seed: i64,
+    pub game_mode: GameMode,
+    pub last_game_mode: LastGameMode,
+    pub is_debug: bool,
+    pub is_flag: bool,
+    pub death_location: Option<DeathLocation>,
+    #[proto(repr = "VarInt")]
+    pub portal_cooldown: i32
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x36, ClientBound, Play)]
+pub struct PlayerAbilities {
+    pub flags: u8,
+    pub fly_speed: f32,
+    pub fov_modifier: f32
+}
+
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
 #[packet(0x67, ClientBound, Play)]
 pub struct StartConfiguration;

@@ -1,17 +1,23 @@
 use std::net::SocketAddr;
 
 use flume::{Receiver, Sender};
+use serverx_protocol::{
+    io::{AsyncPacketReader, AsyncPacketWriter, PacketReadErr},
+    packet::{
+        ConnectionState, Packet,
+        PacketDirection::{ClientBound, ServerBound},
+    },
+    v765::{
+        clientbound::{ServerFinishConfiguration, StartConfiguration},
+        serverbound::{ClientFinishConfiguration, ConfigurationAck},
+        types::HandshakeNextState,
+        PacketDecoderImpl, PacketEncoderImpl,
+    },
+};
 use tokio::net::{
     tcp::{OwnedReadHalf, OwnedWriteHalf},
     TcpStream,
 };
-use serverx_protocol::io::{AsyncPacketReader, AsyncPacketWriter, PacketReadErr};
-use serverx_protocol::packet::{ConnectionState, Packet};
-use serverx_protocol::packet::PacketDirection::{ClientBound, ServerBound};
-use serverx_protocol::v765::clientbound::{ServerFinishConfiguration, StartConfiguration};
-use serverx_protocol::v765::{PacketDecoderImpl, PacketEncoderImpl};
-use serverx_protocol::v765::serverbound::{ClientFinishConfiguration, ConfigurationAck};
-use serverx_protocol::v765::types::HandshakeNextState;
 
 use crate::network::{
     event::NetworkEvent,
@@ -52,7 +58,7 @@ pub fn spawn_write_loop(
                             break 'outer;
                         }
                     }
-                },
+                }
                 Err(_) => break,
             }
         }

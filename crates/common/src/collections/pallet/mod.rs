@@ -6,6 +6,7 @@ use std::{
 
 use crate::collections::packed_vec::PackedVec;
 
+#[derive(Copy, Clone, Debug)]
 pub struct PalletOpts {
     pub repr_bits: u8,
     pub indirect_range: (u8, u8),
@@ -44,6 +45,13 @@ impl Default for PalletStorage {
     fn default() -> Self {
         Self::Single { value: 0 }
     }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum PalletMode {
+    Single,
+    Indirect,
+    Direct,
 }
 
 pub struct PalletContainer {
@@ -112,12 +120,59 @@ impl PalletContainer {
         }
     }
 
+    pub fn indirect(
+        opts: PalletOpts,
+        len: usize,
+        bits: usize,
+        mapping: Vec<u64>,
+        values: PackedVec,
+    ) -> Self {
+        if bits >= HASH_MAP_THRESHOLD {
+            let mut hash_mapping = hashbrown::HashMap::with_capacity(1 << bits);
+            for (i, v) in mapping.iter().enumerate() {
+                hash_mapping.insert(*v, i as u64);
+            }
+            Self::hash(opts, len, bits, hash_mapping, mapping, values)
+        } else {
+            Self::array(opts, len, bits, mapping, values)
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.len
     }
 
     pub fn bits(&self) -> usize {
         self.bits
+    }
+
+    pub fn storage(&self) -> &PalletStorage {
+        &self.storage
+    }
+
+    pub fn mode(&self) -> PalletMode {
+        match &self.storage {
+            PalletStorage::Single { .. } => PalletMode::Single,
+            PalletStorage::Direct { .. } => PalletMode::Direct,
+            _ => PalletMode::Indirect,
+        }
+    }
+
+    pub fn pallet_mapping(&self) -> Option<&[u64]> {
+        match &self.storage {
+            PalletStorage::ArrayMap { mapping, .. } => Some(mapping.as_slice()),
+            PalletStorage::HashMap { rev_mapping, .. } => Some(rev_mapping.as_slice()),
+            _ => None,
+        }
+    }
+
+    pub fn pallet_entries(&self) -> &[u64] {
+        match &self.storage {
+            PalletStorage::Single { .. } => &[],
+            PalletStorage::ArrayMap { values, .. } => values.data().as_slice(),
+            PalletStorage::HashMap { values, .. } => values.data().as_slice(),
+            PalletStorage::Direct { values } => values.data().as_slice(),
+        }
     }
 
     pub fn get(&self, index: usize) -> Option<u64> {
@@ -152,7 +207,7 @@ impl PalletContainer {
         }
     }
 
-    pub fn fill(&mut self, value: u64)  {
+    pub fn fill(&mut self, value: u64) {
         self.storage = PalletStorage::Single { value };
         self.bits = 0;
     }

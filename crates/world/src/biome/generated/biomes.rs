@@ -1,5 +1,3 @@
-pub const BIOME_COUNT: usize = 64;
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Biome {
     Badlands,
@@ -146,6 +144,9 @@ impl TryFrom<u64> for Biome {
 }
 
 impl Biome {
+    pub const COUNT: usize = 64;
+    pub const BITS: usize = (u64::BITS - 63u64.leading_zeros()) as usize;
+
     pub fn id(&self) -> u64 {
         match self {
             Biome::Badlands => 0,

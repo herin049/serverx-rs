@@ -1,13 +1,14 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use serverx_protocol::{
+    io::{AsyncPacketReader, PacketReadErr},
+    packet::{ConnectionState::Handshake, PacketDirection::ServerBound},
+    v765::{
+        serverbound::HandshakeRequest, types::HandshakeNextState, PacketDecoderImpl, PROTO_VER,
+    },
+};
 use tokio::net::TcpStream;
 use tracing::instrument;
-use serverx_protocol::io::{AsyncPacketReader, PacketReadErr};
-use serverx_protocol::packet::ConnectionState::Handshake;
-use serverx_protocol::packet::PacketDirection::ServerBound;
-use serverx_protocol::v765::{PacketDecoderImpl, PROTO_VER};
-use serverx_protocol::v765::serverbound::HandshakeRequest;
-use serverx_protocol::v765::types::HandshakeNextState;
 
 #[derive(Debug, Clone)]
 pub struct HandshakeResult {

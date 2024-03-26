@@ -2,12 +2,14 @@
 pub struct BlockState(u64);
 
 impl BlockState {
+    pub const COUNT: usize = {{ state_count }};
+    pub const BITS: usize = (u64::BITS - {{ state_count - 1}}u64.leading_zeros()) as usize;
+
     pub fn id(&self) -> u64 {
         self.0
     }
 }
 
-pub const STATE_COUNT: u64 = {{ state_count }};
 
 #[derive(Copy, Clone, Debug)]
 pub struct InvalidStateErr;
@@ -16,7 +18,7 @@ impl TryFrom<u64> for BlockState {
     type Error = InvalidStateErr;
 
     fn try_from(value: u64) -> Result<Self, Self::Error> {
-        if value < STATE_COUNT {
+        if value < (BlockState::COUNT as u64) {
             Ok(BlockState(value))
         } else {
             Err(InvalidStateErr)
