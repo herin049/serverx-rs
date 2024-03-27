@@ -48,7 +48,22 @@ impl PacketEncoder for PacketEncoderImpl {
                     )
                 }
                 ConnectionState::Play => {
-                    encode_packet_impl!(packet, id, writer,)
+                    encode_packet_impl!(
+                        packet,
+                        id,
+                        writer,
+                        ChangeDifficulty,
+                        ChunkDataAndLight,
+                        GameJoin,
+                        PlayerAbilities,
+                        SyncPlayerPosition,
+                        DefaultSpawnPosition,
+                        SetCenterChunk,
+                        ChunkBatchFinish,
+                        ChunkBatchStart,
+                        ServerGameEvent,
+                        StartConfiguration
+                    )
                 }
                 ConnectionState::Configuration => {
                     encode_packet_impl!(

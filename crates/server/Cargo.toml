@@ -26,3 +26,6 @@ serverx-macros = { path = "../macros" }
 serverx-protocol = { path = "../protocol" }
 serverx-common = { path = "../common" }
 serverx-nbt = { path = "../nbt" }
+serverx-world = { path = "../world" }
+serverx-game = { path = "../game" }
+serverx-block = { path = "../block" }

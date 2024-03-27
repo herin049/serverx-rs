@@ -54,7 +54,8 @@ pub fn spawn_write_loop(
                                 state = ConnectionState::Configuration;
                             }
                         }
-                        Err(_) => {
+                        Err(err) => {
+                            println!("{:?}", err);
                             break 'outer;
                         }
                     }

@@ -44,7 +44,11 @@ impl PackedVec {
     }
 
     #[inline(always)]
-    pub fn try_from_raw_parts(data: Vec<u64>, elm_size: usize, len: usize) -> Result<Self, InvalidPackedDataError> {
+    pub fn try_from_raw_parts(
+        data: Vec<u64>,
+        elm_size: usize,
+        len: usize,
+    ) -> Result<Self, InvalidPackedDataError> {
         let elm_per_int = (u64::BITS as usize) / elm_size;
         let data_cap = data.len() * elm_per_int;
         if data_cap < len || data_cap >= len + elm_per_int {

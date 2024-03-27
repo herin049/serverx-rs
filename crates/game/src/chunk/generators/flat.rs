@@ -1,5 +1,5 @@
 use serverx_block::blocks::Block;
-use serverx_world::chunk::{ Chunk};
+use serverx_world::chunk::Chunk;
 
 use crate::chunk::{generators::ChunkGenerator, store::ChunkPosition};
 

@@ -1,4 +1,4 @@
-mod chunk;
+pub mod chunk;
 
 pub struct Game {
     ecs: serverx_ecs::world::World,

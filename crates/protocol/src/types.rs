@@ -231,6 +231,7 @@ where
     type Repr = Option<T::Repr>;
 
     fn encode<W: Write + Seek>(data: &Self::Repr, writer: &mut W) -> Result<(), ProtoEncodeErr> {
+        bool::encode(&data.is_some(), writer)?;
         if let Some(val) = data {
             T::encode(val, writer)?;
         }
@@ -347,35 +348,6 @@ impl<T: ProtoEncode> ProtoEncodeSeq for Vec<T> {
 
 impl<'a, T: ProtoEncode> ProtoEncodeSeq for &'a [T] {
     type Repr = &'a [T::Repr];
-
-    fn encode_len<W: Write + Seek>(
-        data: &Self::Repr,
-        writer: &mut W,
-    ) -> Result<usize, ProtoEncodeErr> {
-        let data_len = data.len();
-        if data_len > MAX_VEC_LEN {
-            return Err(ProtoEncodeErr::SeqTooLong(data_len, MAX_VEC_LEN));
-        }
-        let len = <VarInt as ProtoEncode>::Repr::try_from(data_len)
-            .map_err(|_| ProtoEncodeErr::InvalidSeqLen(data_len))?;
-        VarInt::encode(&len, writer)?;
-        Ok(data_len)
-    }
-
-    fn encode_seq<W: Write + Seek>(
-        data: &Self::Repr,
-        writer: &mut W,
-        len: usize,
-    ) -> Result<(), ProtoEncodeErr> {
-        for e in *data {
-            T::encode(e, writer)?;
-        }
-        Ok(())
-    }
-}
-
-impl<'a, T: ProtoEncode> ProtoEncodeSeq for slice::Iter<'a, T> {
-    type Repr = slice::Iter<'a, T::Repr>;
 
     fn encode_len<W: Write + Seek>(
         data: &Self::Repr,

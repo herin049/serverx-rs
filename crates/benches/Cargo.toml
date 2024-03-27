@@ -7,7 +7,11 @@ edition = "2021"
 
 [dev-dependencies]
 criterion = "0.5.1"
-serverx-block = { path = "../block" }
+#serverx-block = { path = "../block" }
+serverx-ecs = { path = "../ecs" }
+rand = "0.8.5"
+evenio = "0.4.2"
+thread_local = "1.1.8"
 
 [[bench]]
 name = "benchmark"

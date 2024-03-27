@@ -1,9 +1,24 @@
-use serverx_common::identifier;
+use serverx_block::blocks::Block;
+use serverx_common::{collections::bit_vec::BitVec, identifier};
+use serverx_game::chunk::{
+    generators::{flat::FlatGeneratorBuilder, ChunkGenerator},
+    store::ChunkPosition,
+};
 use serverx_macros::identifier;
-use serverx_protocol::v765::clientbound::{
-    FeatureFlags, RegistryData, ServerFinishConfiguration, UpdateTags,
+use serverx_protocol::{
+    chunk::encode_chunk,
+    v765::{
+        clientbound::{
+            ChangeDifficulty, ChunkDataAndLight, DefaultSpawnPosition, FeatureFlags, GameJoin,
+            PlayerAbilities, RegistryData, ServerFinishConfiguration, SyncPlayerPosition,
+            UpdateTags,
+        },
+        types::{ChunkLighting, Difficulty, GameMode, LastGameMode},
+    },
 };
 use tracing::instrument;
+use serverx_protocol::v765::clientbound::{ChunkBatchFinish, ChunkBatchStart, ServerGameEvent, SetCenterChunk};
+use serverx_protocol::v765::types::GameEvent;
 
 use crate::{
     client::{status::ClientStatus, Client},
@@ -34,6 +49,92 @@ pub fn update_client(client: &mut Client, server: &mut Server) {
             let finish_config = ServerFinishConfiguration;
             tracing::trace!("sending finish configuration packet");
             let _ = client.outgoing.send(Box::new(finish_config));
+
+            // TEST
+            let _ = client.outgoing.send(Box::new(GameJoin {
+                entity_id: 0,
+                is_hardcore: false,
+                dimensions: vec![
+                    identifier!("overworld"),
+                    identifier!("the_nether"),
+                    identifier!("the_end"),
+                ],
+                max_players: 100,
+                view_distance: 6,
+                sim_distance: 6,
+                reduced_debug: false,
+                enable_respawn: false,
+                limited_crafting: false,
+                dimension_type: identifier!("overworld"),
+                dimension_name: identifier!("overworld"),
+                seed: 0,
+                game_mode: GameMode::Survival,
+                last_game_mode: LastGameMode::Undefined,
+                is_debug: false,
+                is_flag: false,
+                death_location: None,
+                portal_cooldown: 0,
+            }));
+            let _ = client.outgoing.send(Box::new(ChangeDifficulty {
+                difficulty: Difficulty::Hard,
+                locked: false,
+            }));
+            let _ = client.outgoing.send(Box::new(PlayerAbilities {
+                flags: 0,
+                fly_speed: 0.5,
+                fov_modifier: 0.1,
+            }));
+            
+            let _ = client.outgoing.send(Box::new(SetCenterChunk {
+                x: 0,
+                z: 0,
+            }));
+
+            let generator = FlatGeneratorBuilder::new(384)
+                .layer(Block::IronBlock, 64)
+                .build();
+            let chunk = generator.generate(ChunkPosition { x: 0, z: 0 });
+            // println!("{:?}", chunk.sections().get(4).unwrap().blocks);
+            let _ = client.outgoing.send(Box::new(ServerGameEvent { event: GameEvent::StartWaitingForLevelChunks, value: 0.0 }));
+            let _ = client.outgoing.send(Box::new(ChunkBatchStart));
+            if let Ok(encoded) = encode_chunk(&chunk) {
+                let heightmaps = chunk.heightmaps_tag();
+                for i in -6..=6 {
+                    for j in -6..=6 {
+                        let _ = client.outgoing.send(Box::new(ChunkDataAndLight {
+                            x: i,
+                            z: j,
+                            heightmaps: heightmaps.clone(),
+                            chunk_data: encoded.clone(),
+                            block_entities: vec![],
+                            chunk_lighting: ChunkLighting {
+                                sky_light_mask: BitVec::zeros(chunk.sections().len()),
+                                block_light_mask: BitVec::zeros(chunk.sections().len()),
+                                empty_sky_light_mask: BitVec::ones(chunk.sections().len()),
+                                empty_block_light_mask: BitVec::ones(chunk.sections().len()),
+                                sky_light_sections: vec![],
+                                block_light_sections: vec![],
+                            },
+                        }));
+                    }
+                }
+            }
+            let _ = client.outgoing.send(Box::new(ChunkBatchFinish { size: 49 }));
+            let _ = client.outgoing.send(Box::new(DefaultSpawnPosition {
+                location: (0, 10, 0),
+                angle: 0.0,
+            }));
+
+            let _ = client.outgoing.send(Box::new(SyncPlayerPosition {
+                x: 0.0,
+                y: 10.0,
+                z: 0.0,
+                yaw: 0.0,
+                pitch: 0.0,
+                flags: 0,
+                teleport_id: 0,
+            }));
+
             client.status = ClientStatus::Connecting;
         }
         ClientStatus::Connecting => {

@@ -1,13 +1,18 @@
-use std::{io::{Read, Seek, Write}, io, mem};
+use std::{
+    io,
+    io::{Read, Seek, Write},
+    mem,
+};
 
 use serverx_block::states::BlockState;
 use serverx_common::collections::{
     packed_vec::PackedVec,
-    pallet::{PalletContainer, PalletMode, PalletStorage},
+    pallet::{PalletContainer, PalletMode, PalletOpts, PalletStorage},
 };
-use serverx_common::collections::pallet::PalletOpts;
-use serverx_world::chunk::{section::BlockPallet, Chunk};
-use serverx_world::chunk::section::BiomePallet;
+use serverx_world::chunk::{
+    section::{BiomePallet, BlockPallet},
+    Chunk,
+};
 
 use crate::{
     decode::{
@@ -46,9 +51,12 @@ fn pallet_size_bound(pallet: &PalletContainer) -> usize {
     bound
 }
 
-pub fn encode_pallet<W: Write + Seek>(pallet: &PalletContainer, writer: &mut W) -> Result<(), ProtoEncodeErr> {
+pub fn encode_pallet<W: Write + Seek>(
+    pallet: &PalletContainer,
+    writer: &mut W,
+) -> Result<(), ProtoEncodeErr> {
     u8::encode(&(pallet.bits() as u8), writer)?;
-    if let PalletStorage::Single { value } = pallet {
+    if let PalletStorage::Single { value } = pallet.storage() {
         VarInt::encode(&(*value as i32), writer)?;
     } else if let Some(mapping) = pallet.pallet_mapping() {
         let mapping_len = mapping.len();
@@ -65,12 +73,19 @@ pub fn encode_pallet<W: Write + Seek>(pallet: &PalletContainer, writer: &mut W) 
     <&[u64] as ProtoEncode>::encode(&pallet_entries, writer)
 }
 
-pub fn decode_pallet<R: Read + Seek, A: AllocTracker>(pallet_opts: PalletOpts, pallet_size: usize, reader: &mut R, alloc_tracker: &mut A) -> Result<PalletContainer, ProtoDecodeErr> {
+pub fn decode_pallet<R: Read + Seek, A: AllocTracker>(
+    pallet_opts: PalletOpts,
+    pallet_size: usize,
+    reader: &mut R,
+    alloc_tracker: &mut A,
+) -> Result<PalletContainer, ProtoDecodeErr> {
     let bits = u8::decode(reader, alloc_tracker)? as usize;
     if bits == 0 {
         let value = VarInt::decode(reader, alloc_tracker)? as u64;
         Ok(PalletContainer::single(pallet_opts, pallet_size, value))
-    } else if bits >= (pallet_opts.indirect_range.0 as usize) && bits <= (pallet_opts.indirect_range.1 as usize) {
+    } else if bits >= (pallet_opts.indirect_range.0 as usize)
+        && bits <= (pallet_opts.indirect_range.1 as usize)
+    {
         let len = <Vec<VarInt> as ProtoDecodeSeq>::decode_len(reader, alloc_tracker)?;
         alloc_tracker.alloc(len * mem::size_of::<u64>())?;
         let mut mapping: Vec<u64> = Vec::with_capacity(len);
@@ -78,18 +93,25 @@ pub fn decode_pallet<R: Read + Seek, A: AllocTracker>(pallet_opts: PalletOpts, p
             mapping.push(VarInt::decode(reader, alloc_tracker)? as u64);
         }
         let values = <Vec<u64> as ProtoDecode>::decode(reader, alloc_tracker)?;
-        let packed = PackedVec::try_from_raw_parts(values, bits, pallet_size).map_err(|_| ProtoDecodeErr::ChunkDecodeErr)?;
+        let packed = PackedVec::try_from_raw_parts(values, bits, pallet_size)
+            .map_err(|_| ProtoDecodeErr::ChunkDecodeErr)?;
         Ok(PalletContainer::indirect(
             pallet_opts,
             pallet_size,
             bits,
             mapping,
-            packed
+            packed,
         ))
-    } else if bits == pallet_opts.repr_bits {
+    } else if bits == (pallet_opts.repr_bits as usize) {
         let values = <Vec<u64> as ProtoDecode>::decode(reader, alloc_tracker)?;
-        let packed = PackedVec::try_from_raw_parts(values, bits, pallet_size).map_err(|_| ProtoDecodeErr::ChunkDecodeErr)?;
-        Ok(PalletContainer::direct(pallet_opts, pallet_size, pallet_opts.repr_bits as usize, packed))
+        let packed = PackedVec::try_from_raw_parts(values, bits, pallet_size)
+            .map_err(|_| ProtoDecodeErr::ChunkDecodeErr)?;
+        Ok(PalletContainer::direct(
+            pallet_opts,
+            pallet_size,
+            pallet_opts.repr_bits as usize,
+            packed,
+        ))
     } else {
         Err(ProtoDecodeErr::ChunkDecodeErr)
     }
@@ -110,10 +132,13 @@ impl ProtoDecode for BlockPallet {
         reader: &mut R,
         alloc_tracker: &mut A,
     ) -> Result<Self::Repr, ProtoDecodeErr> {
-        let pallet = decode_pallet(BlockPallet::PALLET_OPTS, BlockPallet::SIZE, reader, alloc_tracker)?;
-        Ok(BlockPallet {
-            pallet,
-        })
+        let pallet = decode_pallet(
+            BlockPallet::PALLET_OPTS,
+            BlockPallet::SIZE,
+            reader,
+            alloc_tracker,
+        )?;
+        Ok(BlockPallet { pallet })
     }
 }
 
@@ -132,9 +157,12 @@ impl ProtoDecode for BiomePallet {
         reader: &mut R,
         alloc_tracker: &mut A,
     ) -> Result<Self::Repr, ProtoDecodeErr> {
-        let pallet = decode_pallet(BiomePallet::PALLET_OPTS, BiomePallet::SIZE, reader, alloc_tracker)?;
-        Ok(BiomePallet {
-            pallet,
-        })
+        let pallet = decode_pallet(
+            BiomePallet::PALLET_OPTS,
+            BiomePallet::SIZE,
+            reader,
+            alloc_tracker,
+        )?;
+        Ok(BiomePallet { pallet })
     }
 }

@@ -31,7 +31,7 @@ impl<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> SystemAccesso
         self.current_entity = entity;
     }
 
-    pub fn has_components<T: ComponentTuple>(&self, entity: Entity) -> bool {
+    pub fn has<T: ComponentTuple>(&self, entity: Entity) -> bool {
         if let Some(archetype) = self.world.archetypes.get(entity.archetype_id() as usize) {
             types::subset(T::type_ids().as_ref(), archetype.type_ids.as_ref())
         } else {
@@ -39,8 +39,8 @@ impl<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> SystemAccesso
         }
     }
 
-    pub fn is_alive(&self, entity: Entity) -> bool {
-        self.world.lookup_entity(entity).is_some()
+    pub fn contains(&self, entity: Entity) -> bool {
+        self.world.find(entity).is_some()
     }
 
     pub fn get<'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
@@ -59,7 +59,7 @@ impl<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> SystemAccesso
         } else if !types::subset(type_ids.as_ref(), G::ValueType::type_ids().as_ref()) {
             panic!("invalid read");
         }
-        if let Some((archetype, index)) = self.world.lookup_entity(entity) {
+        if let Some((archetype, index)) = self.world.find(entity) {
             if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
                 unsafe {
                     return Some(<T as ComponentRefTuple<'b>>::deref(
@@ -90,7 +90,7 @@ impl<'a, L: ComponentBorrowTuple<'a>, G: ComponentBorrowTuple<'a>> SystemAccesso
         ) {
             panic!("invalid write");
         }
-        if let Some((archetype, index)) = self.world.lookup_entity(entity) {
+        if let Some((archetype, index)) = self.world.find(entity) {
             if let Ok(ptr) =
                 archetype.try_as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>()
             {
@@ -122,5 +122,19 @@ pub trait SystemMut<'a> {
         entity: Entity,
         components: Self::Local,
         accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+    );
+}
+
+pub trait SystemPar<'a> {
+    type Local: ComponentBorrowTuple<'a>;
+    type Global: ComponentBorrowTuple<'a>;
+    type Ctx;
+    fn par_ctx(&'a self) -> Self::Ctx;
+    fn run(
+        &'a self,
+        entity: Entity,
+        components: Self::Local,
+        accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+        ctx: &mut Self::Ctx,
     );
 }

@@ -38,7 +38,7 @@ impl<P: HeightmapPred> Heightmap<P> {
         let height_bits = (u64::BITS as u64) - ((height + 1).leading_zeros() as u64);
         Self {
             phantom: PhantomData,
-            heights: PackedVec::zeros(height_bits as usize, Chunk::WIDTH),
+            heights: PackedVec::zeros(height_bits as usize, Chunk::WIDTH * Chunk::WIDTH),
         }
     }
 

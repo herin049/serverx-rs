@@ -9,8 +9,8 @@ use slab::Slab;
 use crate::{
     entity::Entity,
     sort::{insertion_sort, insertion_sort_noalias},
-    storage::archetype::{ArchetypeStorage, DebugArchetypeEntry},
-    system::{System, SystemAccessor, SystemMut},
+    storage::archetype::{ArchetypeIter, ArchetypeStorage, DebugArchetypeEntry},
+    system::{System, SystemAccessor, SystemMut, SystemPar},
     tuple::{
         ptr::PtrTuple, type_tuple::TypeTuple, ComponentBorrowTuple, ComponentRefTuple,
         ComponentTuple,
@@ -31,7 +31,7 @@ impl World {
         }
     }
 
-    pub fn lookup_entity(&self, entity: Entity) -> Option<(&ArchetypeStorage, ArchetypeIndex)> {
+    pub fn find(&self, entity: Entity) -> Option<(&ArchetypeStorage, ArchetypeIndex)> {
         if let Some(archetype) = self.archetypes.get(entity.archetype_id() as usize) {
             if let Some(index) = archetype
                 .entity_lookup
@@ -79,7 +79,7 @@ impl World {
         }
     }
 
-    pub fn has_components<T: ComponentTuple>(&self, entity: Entity) -> bool {
+    pub fn has<T: ComponentTuple>(&self, entity: Entity) -> bool {
         if let Some(archetype) = self.archetypes.get(entity.archetype_id() as usize) {
             types::subset(T::type_ids().as_ref(), archetype.type_ids.as_ref())
         } else {
@@ -87,8 +87,8 @@ impl World {
         }
     }
 
-    pub fn is_alive(&self, entity: Entity) -> bool {
-        self.lookup_entity(entity).is_some()
+    pub fn contains(&self, entity: Entity) -> bool {
+        self.find(entity).is_some()
     }
 
     pub fn get<'a, 'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
@@ -100,7 +100,7 @@ impl World {
     {
         let mut type_ids = <T as ComponentRefTuple<'b>>::ValueType::type_ids();
         insertion_sort_noalias(type_ids.as_mut());
-        if let Some((archetype, index)) = self.lookup_entity(entity) {
+        if let Some((archetype, index)) = self.find(entity) {
             if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
                 unsafe {
                     return Some(<T as ComponentRefTuple<'b>>::deref(
@@ -116,10 +116,12 @@ impl World {
     where
         'a: 'b,
     {
-        let mut type_ids = <T as ComponentRefTuple<'b>>::ValueType::type_ids();
+        let mut type_ids = <T as ComponentBorrowTuple<'b>>::ValueType::type_ids();
         insertion_sort_noalias(type_ids.as_mut());
-        if let Some((archetype, index)) = self.lookup_entity(entity) {
-            if let Ok(ptr) = archetype.try_as_mut_ptr::<<T as ComponentRefTuple<'b>>::ValueType>() {
+        if let Some((archetype, index)) = self.find(entity) {
+            if let Ok(ptr) =
+                archetype.try_as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>()
+            {
                 unsafe {
                     return Some(<T as ComponentBorrowTuple<'b>>::deref(
                         ptr.offset(index as isize),
@@ -130,10 +132,10 @@ impl World {
         None
     }
 
-    pub fn run_par<'a, S: System<'a> + Sync>(&'a mut self, system: &S)
+    pub fn run_par<'a, S: SystemPar<'a> + Sync>(&'a mut self, system: &'a S)
     where
         S: Send,
-        <<S as System<'a>>::Local as ComponentBorrowTuple<'a>>::ValueType: Sync,
+        <<S as SystemPar<'a>>::Local as ComponentBorrowTuple<'a>>::ValueType: Sync,
         S::Global: ComponentRefTuple<'a>,
     {
         if !types::disjoint(
@@ -153,10 +155,11 @@ impl World {
                             s.spawn(|_| {
                                 let mut accessor =
                                     SystemAccessor::<'a, S::Local, S::Global>::new(self);
+                                let mut ctx = system.par_ctx();
                                 unsafe {
                                     for (entity, values) in chunk {
                                         accessor.update_entity(entity);
-                                        system.run(entity, values, &mut accessor);
+                                        system.run(entity, values, &mut accessor, &mut ctx);
                                     }
                                 }
                             });
@@ -219,25 +222,11 @@ impl Debug for World {
     }
 }
 
-pub struct WorldAccess<'a, T: ComponentBorrowTuple<'a>> {
-    pub world: &'a World,
-    phantom: PhantomData<T>,
-}
-
-impl<'a, T: ComponentBorrowTuple<'a>> WorldAccess<'a, T> {
-    pub unsafe fn new(world: &'a World) -> Self {
-        Self {
-            world,
-            phantom: PhantomData,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
         entity::Entity,
-        system::{System, SystemAccessor, SystemMut},
+        system::{System, SystemAccessor, SystemMut, SystemPar},
         world::World,
     };
 
@@ -273,6 +262,30 @@ mod tests {
         }
     }
 
+    pub struct TestParSystem {
+        pub value: i32,
+    }
+    impl<'a> SystemPar<'a> for TestParSystem {
+        type Ctx = &'a i32;
+        type Global = ();
+        type Local = (&'a i32, &'a mut f32);
+
+        fn par_ctx(&'a self) -> Self::Ctx {
+            &self.value
+        }
+
+        fn run(
+            &'a self,
+            entity: Entity,
+            components: Self::Local,
+            accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+            ctx: &mut Self::Ctx,
+        ) {
+            println!("{:?} {:?} {:?}", entity, components.0, components.1);
+            *components.1 *= 2.0;
+        }
+    }
+
     #[test]
     fn test_system() {
         let mut world = World::new();
@@ -283,8 +296,8 @@ mod tests {
         let e5 = world.push((13i32, 16i64, 14.5f32, "hello world5"));
         let e6 = world.push((13i32, 16i64, 14.5f32, "hello world6"));
         let mut system = TestSystem;
-        // world.run(&system);
-        // world.run_par(&system);
+        world.run(&system);
+        world.run_par(&TestParSystem { value: 3 });
         world.run_mut(&mut system);
         println!("{:#?}", world);
     }

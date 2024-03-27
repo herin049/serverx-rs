@@ -8,7 +8,7 @@ use crate as protocol;
 use crate::types::*;
 
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
-#[proto(enum_repr = "VarInt")]
+#[proto(tag_repr = "VarInt")]
 pub enum HandshakeNextState {
     #[proto(tag = 1)]
     Status,
@@ -87,9 +87,8 @@ pub struct LightingArray {
     pub data: Vec<u8>,
 }
 
-
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
-#[proto(enum_repr = "u8")]
+#[proto(tag_repr = "u8")]
 pub enum GameMode {
     #[proto(tag = 0)]
     Survival,
@@ -101,9 +100,8 @@ pub enum GameMode {
     Spectator,
 }
 
-
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
-#[proto(enum_repr = "i8")]
+#[proto(tag_repr = "i8")]
 pub enum LastGameMode {
     #[proto(tag = -1)]
     Undefined,
@@ -117,19 +115,37 @@ pub enum LastGameMode {
     Spectator,
 }
 
-
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
 pub struct DeathLocation {
     pub dimension: Identifier,
     #[proto(repr = "Position")]
-    pub position: (i32, i32, i32)
+    pub position: (i32, i32, i32),
 }
 
 #[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
-#[proto(enum_repr = "u8")]
+#[proto(tag_repr = "u8")]
 pub enum Difficulty {
     Peaceful,
     Easy,
     Normal,
-    Hard
+    Hard,
+}
+
+#[derive(ProtoEncode, ProtoDecode, Debug, Clone)]
+#[proto(tag_repr = "u8")]
+pub enum GameEvent {
+    NoRespawnBlock,
+    EndRaining,
+    BeginRaining,
+    ChangeGameMode,
+    WinGame,
+    DemoEvent,
+    ArrowHitPlayer,
+    RainLevelChange,
+    ThunderLevelChange,
+    PlayerPufferFishSound,
+    PlayElderGuardianMobAppearance,
+    EnableRespawnScreen,
+    LimitedCrafting,
+    StartWaitingForLevelChunks
 }

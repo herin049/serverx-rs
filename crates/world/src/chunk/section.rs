@@ -1,4 +1,6 @@
+use std::fmt::{Debug, Formatter};
 use serverx_block::{states, states::BlockState};
+use serverx_block::blocks::Block;
 use serverx_common::collections::pallet::{PalletContainer, PalletOpts};
 
 use crate::{biome, biome::Biome};
@@ -27,6 +29,17 @@ impl BlockPallet {
     }
 }
 
+impl Debug for BlockPallet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug_list = f.debug_list();
+        for i in 0..Self::SIZE {
+            let b: Block = BlockState::try_from(self.pallet.get(i).unwrap()).unwrap_or_default().into();
+            debug_list.entry(&b);
+        }
+        debug_list.finish()
+    }
+}
+
 pub struct BiomePallet {
     pub pallet: PalletContainer,
 }
@@ -44,6 +57,16 @@ impl BiomePallet {
         Self {
             pallet: PalletContainer::single(Self::PALLET_OPTS, Self::SIZE, Biome::default().id()),
         }
+    }
+}
+
+impl Debug for BiomePallet {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug_list = f.debug_list();
+        for i in 0..Self::SIZE {
+            debug_list.entry(&Biome::try_from(self.pallet.get(i).unwrap()).unwrap_or_default());
+        }
+        debug_list.finish()
     }
 }
 

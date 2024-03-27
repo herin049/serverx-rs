@@ -1,4 +1,4 @@
-mod flat;
+pub mod flat;
 
 use serverx_world::chunk::Chunk;
 

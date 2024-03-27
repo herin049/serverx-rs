@@ -158,10 +158,28 @@ pub struct UpdateTags {
 //
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
-#[packet(0x25, ClientBound, Play)]
+#[packet(0x0B, ClientBound, Play)]
 pub struct ChangeDifficulty {
     pub difficulty: Difficulty,
-    pub locked: bool
+    pub locked: bool,
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x0C, ClientBound, Play)]
+pub struct ChunkBatchFinish {
+    #[proto(repr = "VarInt")]
+    pub size: i32
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x0D, ClientBound, Play)]
+pub struct ChunkBatchStart;
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x20, ClientBound, Play)]
+pub struct ServerGameEvent {
+    pub event: GameEvent,
+    pub value: f32
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
@@ -180,7 +198,7 @@ pub struct ChunkDataAndLight {
 #[packet(0x29, ClientBound, Play)]
 pub struct GameJoin {
     pub entity_id: i32,
-    pub is_hardcord: bool,
+    pub is_hardcore: bool,
     pub dimensions: Vec<Identifier>,
     #[proto(repr = "VarInt")]
     pub max_players: i32,
@@ -200,7 +218,7 @@ pub struct GameJoin {
     pub is_flag: bool,
     pub death_location: Option<DeathLocation>,
     #[proto(repr = "VarInt")]
-    pub portal_cooldown: i32
+    pub portal_cooldown: i32,
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
@@ -208,7 +226,37 @@ pub struct GameJoin {
 pub struct PlayerAbilities {
     pub flags: u8,
     pub fly_speed: f32,
-    pub fov_modifier: f32
+    pub fov_modifier: f32,
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x3E, ClientBound, Play)]
+pub struct SyncPlayerPosition {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub flags: u8,
+    #[proto(repr = "VarInt")]
+    pub teleport_id: i32,
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x52, ClientBound, Play)]
+pub struct SetCenterChunk {
+    #[proto(repr = "VarInt")]
+    pub x: i32,
+    #[proto(repr = "VarInt")]
+    pub z: i32
+}
+
+#[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
+#[packet(0x54, ClientBound, Play)]
+pub struct DefaultSpawnPosition {
+    #[proto(repr = "Position")]
+    pub location: (i32, i32, i32),
+    pub angle: f32,
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
