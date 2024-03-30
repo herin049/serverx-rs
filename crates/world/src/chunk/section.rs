@@ -1,10 +1,11 @@
 use std::fmt::{Debug, Formatter};
-use serverx_block::{states, states::BlockState};
-use serverx_block::blocks::Block;
-use serverx_common::collections::pallet::{PalletContainer, PalletOpts};
+
+use serverx_block::{blocks::Block, states, states::BlockState};
+use serverx_common::collections::pallet::{PalletContainer, PalletMode, PalletOpts};
 
 use crate::{biome, biome::Biome};
 
+#[derive(Clone)]
 pub struct BlockPallet {
     pub pallet: PalletContainer,
 }
@@ -32,14 +33,25 @@ impl BlockPallet {
 impl Debug for BlockPallet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
-        for i in 0..Self::SIZE {
-            let b: Block = BlockState::try_from(self.pallet.get(i).unwrap()).unwrap_or_default().into();
+        if self.pallet.mode() == PalletMode::Single {
+            let b: Block = BlockState::try_from(self.pallet.get(0).unwrap())
+                .unwrap_or_default()
+                .into();
             debug_list.entry(&b);
+            debug_list.entry(&"...");
+        } else {
+            for i in 0..Self::SIZE {
+                let b: Block = BlockState::try_from(self.pallet.get(i).unwrap())
+                    .unwrap_or_default()
+                    .into();
+                debug_list.entry(&b);
+            }
         }
         debug_list.finish()
     }
 }
 
+#[derive(Clone)]
 pub struct BiomePallet {
     pub pallet: PalletContainer,
 }
@@ -63,13 +75,20 @@ impl BiomePallet {
 impl Debug for BiomePallet {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
-        for i in 0..Self::SIZE {
-            debug_list.entry(&Biome::try_from(self.pallet.get(i).unwrap()).unwrap_or_default());
+        if self.pallet.mode() == PalletMode::Single {
+            let b: Biome = Biome::try_from(self.pallet.get(0).unwrap()).unwrap_or_default();
+            debug_list.entry(&b);
+            debug_list.entry(&"...");
+        } else {
+            for i in 0..Self::SIZE {
+                debug_list.entry(&Biome::try_from(self.pallet.get(i).unwrap()).unwrap_or_default());
+            }
         }
         debug_list.finish()
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ChunkSection {
     pub blocks: BlockPallet,
     pub biomes: BiomePallet,

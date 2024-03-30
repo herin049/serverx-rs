@@ -3,13 +3,18 @@ use std::{
     fmt::{Debug, Formatter},
     marker::PhantomData,
 };
+use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use slab::Slab;
 
 use crate::{
     entity::Entity,
+    event::Event,
     sort::{insertion_sort, insertion_sort_noalias},
-    storage::archetype::{ArchetypeIter, ArchetypeStorage, DebugArchetypeEntry},
+    storage::{
+        archetype::{ArchetypeIter, ArchetypeStorage, DebugArchetypeEntry},
+        event::EventStorage,
+    },
     system::{System, SystemAccessor, SystemMut, SystemPar},
     tuple::{
         ptr::PtrTuple, type_tuple::TypeTuple, ComponentBorrowTuple, ComponentRefTuple,
@@ -17,17 +22,21 @@ use crate::{
     },
     types, ArchetypeId, ArchetypeIndex,
 };
+use crate::handler::{Handler, HandlerAccessor, HandlerMut, HandlerPar};
+use crate::tuple::EventTuple;
 
-pub struct World {
+pub struct Registry {
     pub archetypes: Vec<ArchetypeStorage>,
     pub archetype_lookup: Vec<(Box<[TypeId]>, ArchetypeId)>,
+    pub events: EventStorage,
 }
 
-impl World {
+impl Registry {
     pub fn new() -> Self {
         Self {
             archetypes: Vec::new(),
             archetype_lookup: Vec::new(),
+            events: EventStorage::new(),
         }
     }
 
@@ -132,46 +141,54 @@ impl World {
         None
     }
 
-    pub fn run_par<'a, S: SystemPar<'a> + Sync>(&'a mut self, system: &'a S)
+    pub fn run_par<'a, 'b, S: SystemPar<'b> + Sync + 'b>(&'a mut self, system: &S)
     where
+        'a: 'b,
         S: Send,
-        <<S as SystemPar<'a>>::Local as ComponentBorrowTuple<'a>>::ValueType: Sync,
-        S::Global: ComponentRefTuple<'a>,
+        <<S as SystemPar<'b>>::Local as ComponentBorrowTuple<'b>>::ValueType: Sync,
+        S::Global: ComponentRefTuple<'b>,
     {
         if !types::disjoint(
-            <S::Global as ComponentBorrowTuple<'a>>::ReadType::type_ids().as_ref(),
-            <S::Local as ComponentBorrowTuple<'a>>::WriteType::type_ids().as_ref(),
+            <S::Global as ComponentBorrowTuple<'b>>::ReadType::type_ids().as_ref(),
+            <S::Local as ComponentBorrowTuple<'b>>::WriteType::type_ids().as_ref(),
         ) {
             panic!("global read set aliases with local write set");
         }
-        rayon::scope(|s| {
-            for archetype in self.archetypes.iter() {
-                if types::subset(
-                    <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
-                    archetype.type_ids.as_ref(),
-                ) {
-                    unsafe {
-                        for chunk in archetype.chunks_mut::<S::Local>(4096) {
-                            s.spawn(|_| {
-                                let mut accessor =
-                                    SystemAccessor::<'a, S::Local, S::Global>::new(self);
-                                let mut ctx = system.par_ctx();
-                                unsafe {
-                                    for (entity, values) in chunk {
-                                        accessor.update_entity(entity);
-                                        system.run(entity, values, &mut accessor, &mut ctx);
+        {
+            S::Send::register(&mut self.events);
+        }
+        {
+            let r = rayon::scope(|s| {
+                for archetype in self.archetypes.iter() {
+                    if types::subset(
+                        <S::Local as ComponentBorrowTuple<'b>>::ValueType::type_ids().as_ref(),
+                        archetype.type_ids.as_ref(),
+                    ) {
+                        unsafe {
+                            for chunk in archetype.chunks_mut::<S::Local>(4096) {
+                                s.spawn(|_| {
+                                    let mut accessor =
+                                        SystemAccessor::<'_, 'b, S::Local, S::Global>::new(self, true);
+                                    let mut ctx = system.par_ctx();
+                                    unsafe {
+                                        for (entity, values) in chunk {
+                                            accessor.update_entity(entity);
+                                            system.run(entity, values, &mut accessor, &mut ctx);
+                                        }
                                     }
-                                }
-                            });
+                                });
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
+        S::Send::sync(&mut self.events);
     }
 
-    pub fn run<'a, S: System<'a>>(&'a mut self, system: &S) {
-        let mut accessor = SystemAccessor::<'a, S::Local, S::Global>::new(self);
+    pub fn run<'a, S: System<'a> + 'a>(&'a mut self, system: &S) {
+        S::Send::register(&mut self.events);
+        let mut accessor = SystemAccessor::<'_, 'a, S::Local, S::Global>::new(self, false);
         for archetype in self.archetypes.iter() {
             if types::subset(
                 <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
@@ -187,8 +204,9 @@ impl World {
         }
     }
 
-    pub fn run_mut<'a, S: SystemMut<'a>>(&'a mut self, system: &mut S) {
-        let mut accessor = SystemAccessor::<'a, S::Local, S::Global>::new(self);
+    pub fn run_mut<'a, S: SystemMut<'a> + 'a>(&'a mut self, system: &mut S) {
+        S::Send::register(&mut self.events);
+        let mut accessor = SystemAccessor::<'_, 'a, S::Local, S::Global>::new(self, false);
         for archetype in self.archetypes.iter() {
             if types::subset(
                 <S::Local as ComponentBorrowTuple<'a>>::ValueType::type_ids().as_ref(),
@@ -201,13 +219,70 @@ impl World {
                     }
                 }
             }
+        }
+    }
+
+    pub fn handle<'a, 'b, H: Handler<'b> + 'b>(&'a mut self, handler: &H) {
+        if H::Send::type_ids().as_ref().iter().find(|x| TypeId::of::<H::Event>().eq(*x)).is_some() {
+            panic!("alias in event handler types");
+        }
+        let mut accessor = HandlerAccessor::<'_, 'b, H::Global, H::Send>::new(self, false);
+        unsafe {
+            for e in self.events.events::<H::Event>() {
+                handler.run(e, &mut accessor);
+            }
+        }
+    }
+
+    pub fn handle_mut<'a, 'b, H: HandlerMut<'b> + 'b>(&'a mut self, handler: &mut H) {
+        if H::Send::type_ids().as_ref().iter().find(|x| TypeId::of::<H::Event>().eq(*x)).is_some() {
+            panic!("alias in event handler types");
+        }
+        let mut accessor = HandlerAccessor::<'_, 'b, H::Global, H::Send>::new(self, false);
+        unsafe {
+            for e in self.events.events::<H::Event>() {
+                handler.run(e, &mut accessor);
+            }
+        }
+    }
+
+    pub fn handle_par<'a, 'b, H: HandlerPar<'b> + Sync + 'b>(&'a mut self, handler: &'b H) where <H as HandlerPar<'b>>::Event: Sync {
+        if H::Send::type_ids().as_ref().iter().find(|x| TypeId::of::<H::Event>().eq(*x)).is_some() {
+            panic!("alias in event handler types");
+        }
+        let chunks = unsafe { self.events.events::<H::Event>().chunks(1024) };
+        rayon::scope(|s| {
+            unsafe {
+                for c in chunks {
+                    let handler_ref = &*handler;
+                    let self_ref = &*self;
+                    s.spawn(move |_| {
+                        let mut ctx = handler_ref.par_ctx();
+                        let mut accessor = HandlerAccessor::<'_, 'b, H::Global, H::Send>::new(self_ref, false);
+                        for e in c {
+                            handler_ref.run(e, &mut accessor, &mut ctx);
+                        }
+                    });
+                }
+            }
+        });
+        H::Send::sync(&mut self.events);
+    }
+
+    pub fn register_event<T: Event>(&mut self) {
+        self.events.register::<T>();
+    }
+
+    pub fn send<T: Event>(&mut self, e: T) {
+        unsafe {
+            self.events.send(e);
         }
     }
 }
 
-unsafe impl Sync for World {}
+unsafe impl Sync for Registry {}
 
-impl Debug for World {
+impl Debug for Registry {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
         for arch in self.archetypes.iter() {
@@ -226,8 +301,8 @@ impl Debug for World {
 mod tests {
     use crate::{
         entity::Entity,
+        registry::Registry,
         system::{System, SystemAccessor, SystemMut, SystemPar},
-        world::World,
     };
 
     pub struct TestSystem;
@@ -235,27 +310,30 @@ mod tests {
     impl<'a> System<'a> for TestSystem {
         type Global = ();
         type Local = (&'a i32, &'a mut f32);
+        type Send = ();
 
         fn run(
             &self,
             entity: Entity,
             components: Self::Local,
-            accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+            accessor: &mut SystemAccessor<'_, 'a, Self::Local, Self::Global>,
         ) {
             println!("{:?} {:?} {:?}", entity, components.0, components.1);
             *components.1 *= 2.0;
         }
+
     }
 
     impl<'a> SystemMut<'a> for TestSystem {
         type Global = ();
         type Local = (&'a i32, &'a mut f32);
+        type Send = ();
 
         fn run(
             &mut self,
             entity: Entity,
             components: Self::Local,
-            accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+            accessor: &mut SystemAccessor<'_, 'a, Self::Local, Self::Global>,
         ) {
             println!("{:?} {:?} {:?}", entity, components.0, components.1);
             *components.1 *= 2.0;
@@ -266,19 +344,20 @@ mod tests {
         pub value: i32,
     }
     impl<'a> SystemPar<'a> for TestParSystem {
-        type Ctx = &'a i32;
+        type Ctx = i32;
         type Global = ();
         type Local = (&'a i32, &'a mut f32);
+        type Send = ();
 
-        fn par_ctx(&'a self) -> Self::Ctx {
-            &self.value
+        fn par_ctx(&self) -> Self::Ctx {
+            self.value
         }
 
         fn run(
-            &'a self,
+            &self,
             entity: Entity,
             components: Self::Local,
-            accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+            accessor: &mut SystemAccessor<'_, 'a, Self::Local, Self::Global>,
             ctx: &mut Self::Ctx,
         ) {
             println!("{:?} {:?} {:?}", entity, components.0, components.1);
@@ -288,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_system() {
-        let mut world = World::new();
+        let mut world = Registry::new();
         let e1 = world.push((13i32, 16i64, 14.5f32, "hello world1"));
         let e2 = world.push((13i32, 16i64, 14.5f32, "hello world2"));
         let e3 = world.push((13i32, 16i64, 14.5f32, "hello world3"));
@@ -304,7 +383,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut world = World::new();
+        let mut world = Registry::new();
         let e1 = world.push((13i32, 16i64, 14.5f32, "hello world1"));
         let e2 = world.push((13i32, 16i64, 14.5f32, "hello world2"));
         let e3 = world.push((13i32, 16i64, 14.5f32, "hello world3"));

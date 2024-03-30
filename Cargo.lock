@@ -251,6 +251,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab3db02a9c5b5121e1e42fbdb1aeb65f5e02624cc58c43f2884c6ccac0b82f95"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -265,6 +287,15 @@ name = "crossbeam-epoch"
 version = "0.9.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b82ac4a3c2ca9c3460964f020e1402edd5753411d7737aa39c3714ad1b5420e"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-queue"
+version = "0.3.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df0346b5d5e76ac2fe4e327c5fd1118d6be7c51dfb18f9b7922923f287471e35"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -361,6 +392,7 @@ dependencies = [
  "evenio_macros",
  "hashbrown",
  "indexmap",
+ "rayon",
  "slab",
 ]
 
@@ -600,6 +632,15 @@ checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
 dependencies = [
  "overload",
  "winapi",
+]
+
+[[package]]
+name = "num-integer"
+version = "0.1.46"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -935,7 +976,11 @@ dependencies = [
  "criterion",
  "evenio",
  "rand 0.8.5",
+ "serverx-block",
  "serverx-ecs",
+ "serverx-game",
+ "serverx-protocol",
+ "serverx-world",
  "thread_local",
 ]
 
@@ -961,17 +1006,22 @@ dependencies = [
  "rayon",
  "serverx-macros",
  "slab",
+ "thread_local",
 ]
 
 [[package]]
 name = "serverx-game"
 version = "0.1.0"
 dependencies = [
+ "crossbeam",
  "hashbrown",
+ "num-integer",
  "rayon",
  "serverx-block",
+ "serverx-common",
  "serverx-ecs",
  "serverx-world",
+ "slab",
 ]
 
 [[package]]
@@ -1047,6 +1097,7 @@ dependencies = [
 name = "serverx-world"
 version = "0.1.0"
 dependencies = [
+ "num-integer",
  "serverx-block",
  "serverx-common",
  "serverx-macros",

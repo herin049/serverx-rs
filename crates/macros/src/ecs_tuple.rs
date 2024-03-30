@@ -84,44 +84,54 @@ pub fn typle_impl_n(count: usize, max_count: usize) -> TokenStream {
             }
         }
 
-        impl<#(#ty_idents: Component,)* T: Component> ComponentTupleAdd<T> for (#(#ty_idents,)*)
-            where (#(#ty_idents,)* T) : ComponentTuple {
-            type ValueType = (#(#ty_idents,)* T);
+        impl<#(#ty_idents: Component,)* Tail: Component> ComponentTupleAdd<Tail> for (#(#ty_idents,)*)
+            where (#(#ty_idents,)* Tail) : ComponentTuple {
+            type ValueType = (#(#ty_idents,)* Tail);
         }
 
-        impl<'a, #(#ty_idents: Component,)* T: Component> ComponentTupleAddRef<&'a T> for (#(#ty_idents,)*)
-            where (#(#ty_idents,)* T) : ComponentTuple {
-            type ValueType = (#(#ty_idents,)* T);
+        impl<'a, #(#ty_idents: Component,)* Tail: Component> ComponentTupleAddRef<&'a Tail> for (#(#ty_idents,)*)
+            where (#(#ty_idents,)* Tail) : ComponentTuple {
+            type ValueType = (#(#ty_idents,)* Tail);
         }
 
-        impl<'a, #(#ty_idents: Component,)* T: Component> ComponentTupleAddRef<&'a mut T> for (#(#ty_idents,)*)
+        impl<'a, #(#ty_idents: Component,)* Tail: Component> ComponentTupleAddRef<&'a mut Tail> for (#(#ty_idents,)*)
             where (#(#ty_idents,)*) : ComponentTuple {
             type ValueType = (#(#ty_idents,)*);
         }
 
-        impl<'a, #(#ty_idents: Component,)* T: Component> ComponentTupleAddMut<&'a T> for (#(#ty_idents,)*)
+        impl<'a, #(#ty_idents: Component,)* Tail: Component> ComponentTupleAddMut<&'a Tail> for (#(#ty_idents,)*)
             where (#(#ty_idents,)*) : ComponentTuple {
             type ValueType = (#(#ty_idents,)*);
         }
 
-        impl<'a, #(#ty_idents: Component,)* T: Component> ComponentTupleAddMut<&'a mut T> for (#(#ty_idents,)*)
-            where (#(#ty_idents,)* T) : ComponentTuple {
-            type ValueType = (#(#ty_idents,)* T);
+        impl<'a, #(#ty_idents: Component,)* Tail: Component> ComponentTupleAddMut<&'a mut Tail> for (#(#ty_idents,)*)
+            where (#(#ty_idents,)* Tail) : ComponentTuple {
+            type ValueType = (#(#ty_idents,)* Tail);
+        }
+
+        impl<#(#ty_idents: Event),*> EventTuple for (#(#ty_idents,)*) {
+            fn register(storage: &mut EventStorage) {
+                #(storage.register::<#ty_idents>();)*
+            }
+
+            fn sync(storage: &mut EventStorage) {
+                #(storage.sync::<#ty_idents>();)*
+            }
         }
     });
     if count < max_count {
         results.push(quote! {
-            impl<'a, #(#ty_idents: ComponentBorrowType<'a>),*, T: ComponentBorrowType<'a>> ComponentBorrowTuple<'a> for (#(#ty_idents),*, T) where
-                (#(#ty_idents,)*) : ComponentBorrowTuple<'a>, <(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::ReadType: ComponentTupleAddRef<T>,
-                <(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::WriteType: ComponentTupleAddMut<T>
+            impl<'a, #(#ty_idents: ComponentBorrowType<'a>),*, Tail: ComponentBorrowType<'a>> ComponentBorrowTuple<'a> for (#(#ty_idents),*, Tail) where
+                (#(#ty_idents,)*) : ComponentBorrowTuple<'a>, <(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::ReadType: ComponentTupleAddRef<Tail>,
+                <(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::WriteType: ComponentTupleAddMut<Tail>
             {
-                type ValueType = (#(#ty_idents::ValueType,)* T::ValueType);
-                type ReadType = <<(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::ReadType as ComponentTupleAddRef<T>>::ValueType;
-                type WriteType = <<(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::WriteType as ComponentTupleAddMut<T>>::ValueType;
+                type ValueType = (#(#ty_idents::ValueType,)* Tail::ValueType);
+                type ReadType = <<(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::ReadType as ComponentTupleAddRef<Tail>>::ValueType;
+                type WriteType = <<(#(#ty_idents,)*) as ComponentBorrowTuple<'a>>::WriteType as ComponentTupleAddMut<Tail>>::ValueType;
 
                 #[inline(always)]
                 unsafe fn deref(ptr: <Self::ValueType as ComponentTuple>::PtrType) -> Self {
-                    (#(#ty_idents::deref(ptr.#ty_indexes),)* T::deref(ptr.#count_ts))
+                    (#(#ty_idents::deref(ptr.#ty_indexes),)* Tail::deref(ptr.#count_ts))
                 }
             }
         });

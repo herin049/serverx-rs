@@ -23,6 +23,7 @@ impl PalletOpts {
 
 const HASH_MAP_THRESHOLD: usize = 4;
 
+#[derive(Clone)]
 pub enum PalletStorage {
     Single {
         value: u64,
@@ -54,6 +55,7 @@ pub enum PalletMode {
     Direct,
 }
 
+#[derive(Clone)]
 pub struct PalletContainer {
     opts: PalletOpts,
     storage: PalletStorage,

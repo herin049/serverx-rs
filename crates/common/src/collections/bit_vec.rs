@@ -124,6 +124,26 @@ impl BitVec {
     }
 }
 
+pub struct BitVecIter<'a> {
+    vec: &'a BitVec,
+    curr: usize,
+}
+
+impl<'a> Iterator for BitVecIter<'a> {
+    type Item = bool;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.curr < self.vec.len {
+            let data_index = self.curr / 64;
+            let rem = self.curr % 64;
+            self.curr += 1;
+            Some((self.vec.data[data_index] & (1u64 << rem)) != 0)
+        } else {
+            None
+        }
+    }
+}
+
 impl Debug for BitVec {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut debug_list = f.debug_list();

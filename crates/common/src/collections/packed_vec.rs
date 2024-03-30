@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
+#[derive(Clone)]
 pub struct PackedVec {
     data: Vec<u64>,
     elm_size: usize,

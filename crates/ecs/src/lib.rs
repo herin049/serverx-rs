@@ -1,11 +1,13 @@
 pub mod component;
 pub mod entity;
+pub mod event;
+pub mod registry;
 pub mod sort;
 pub mod storage;
 pub mod system;
 pub mod tuple;
 pub mod types;
-pub mod world;
+mod handler;
 
 pub type Generation = u64;
 pub type ArchetypeId = u32;

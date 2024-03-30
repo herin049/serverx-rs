@@ -15,7 +15,6 @@ serde = "1.0.136"
 serde_derive = "1.0.136"
 serde_yaml = "0.9"
 itertools = "0.10.5"
-
 [lib]
 proc-macro = true
 

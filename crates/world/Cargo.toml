@@ -8,3 +8,4 @@ serverx-block = { path = "../block" }
 serverx-common = { path = "../common" }
 serverx-nbt = { path = "../nbt" }
 serverx-macros = { path = "../macros" }
+num-integer = "0.1.46"

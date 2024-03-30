@@ -1,12 +1,14 @@
 use std::{any::TypeId, fmt::Debug};
+use crate::event::Event;
 
-use serverx_macros::tuple_impl;
+use serverx_macros::ecs_tuple_impl;
 
 use crate::{
     component::Component,
     storage::blob::BlobStorage,
     tuple::{ptr::PtrTuple, type_tuple::TypeTuple},
 };
+use crate::storage::event::EventStorage;
 
 pub mod ptr;
 pub mod type_tuple;
@@ -151,7 +153,20 @@ where
     type ValueType = (T,);
 }
 
-tuple_impl!(10);
+pub trait EventTuple: TypeTuple {
+    fn register(storage: &mut EventStorage);
+    fn sync(storage: &mut EventStorage);
+}
+
+impl EventTuple for () {
+    fn register(_storage: &mut EventStorage) {
+    }
+
+    fn sync(_storage: &mut EventStorage) {
+    }
+}
+
+ecs_tuple_impl!(10);
 
 #[cfg(test)]
 mod tests {

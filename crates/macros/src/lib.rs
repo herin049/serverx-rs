@@ -1,19 +1,19 @@
 #![feature(proc_macro_quote)]
 
+mod ecs_tuple;
 mod identifier;
 mod nbt;
 mod packet;
 mod proto;
-mod tuple;
 
 use proc_macro::TokenStream;
 
 use crate::{
+    ecs_tuple::tuple_macro_impl,
     identifier::identifier_macro_impl,
     nbt::nbt_macro_impl,
     packet::packet_macro_impl,
     proto::{proto_decode_macro_impl, proto_encode_macro_impl},
-    tuple::tuple_macro_impl,
 };
 
 #[proc_macro_derive(Packet, attributes(packet))]
@@ -42,6 +42,6 @@ pub fn identifier(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn tuple_impl(input: TokenStream) -> TokenStream {
+pub fn ecs_tuple_impl(input: TokenStream) -> TokenStream {
     tuple_macro_impl(input.into()).into()
 }

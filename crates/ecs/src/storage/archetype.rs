@@ -167,46 +167,46 @@ impl ArchetypeStorage {
         T::PtrType::from_ptr_slice(ptrs.as_ref())
     }
 
-    pub fn iter<'a, T: ComponentRefTuple<'a> + ComponentBorrowTuple<'a>>(
+    pub unsafe fn iter<'a, 'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
         &'a self,
-    ) -> ArchetypeIter<'a, T> {
+    ) -> ArchetypeIter<'_, 'b, T> where 'a: 'b {
         ArchetypeIter {
             phantom: PhantomData,
             entities: self.entities.as_slice(),
-            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'a>>::ValueType>(),
+            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>(),
             curr: 0,
             end: self.len,
         }
     }
 
-    pub unsafe fn iter_mut<'a, T: ComponentBorrowTuple<'a>>(&'a self) -> ArchetypeIter<'a, T> {
+    pub unsafe fn iter_mut<'a, 'b, T: ComponentBorrowTuple<'b>>(&'a self) -> ArchetypeIter<'_, 'b, T> {
         ArchetypeIter {
             phantom: PhantomData,
             entities: self.entities.as_slice(),
-            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'a>>::ValueType>(),
+            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>(),
             curr: 0,
             end: self.len,
         }
     }
 
-    pub fn chunks<'a, T: ComponentRefTuple<'a> + ComponentBorrowTuple<'a>>(
+    pub unsafe fn chunks<'a, 'b, T: ComponentRefTuple<'b> + ComponentBorrowTuple<'b>>(
         &'a self,
         chunk_size: usize,
-    ) -> ArchetypeChunks<'a, T> {
+    ) -> ArchetypeChunks<'_, 'b, T> where 'a: 'b {
         ArchetypeChunks {
             phantom: PhantomData,
             entities: self.entities.as_slice(),
-            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'a>>::ValueType>(),
+            ptr: self.as_mut_ptr::<<T as ComponentBorrowTuple<'b>>::ValueType>(),
             curr: 0,
             end: self.len,
             chunk_size,
         }
     }
 
-    pub unsafe fn chunks_mut<'a, T: ComponentBorrowTuple<'a>>(
-        &'a self,
+    pub unsafe fn chunks_mut<'a, 'b, T: ComponentBorrowTuple<'b>>(
+        &self,
         chunk_size: usize,
-    ) -> ArchetypeChunks<'a, T> {
+    ) -> ArchetypeChunks<'_, 'b, T> {
         ArchetypeChunks {
             phantom: PhantomData,
             entities: self.entities.as_slice(),
@@ -218,7 +218,7 @@ impl ArchetypeStorage {
     }
 }
 
-pub struct ArchetypeIter<'a, T: ComponentBorrowTuple<'a>> {
+pub struct ArchetypeIter<'a, 'b, T: ComponentBorrowTuple<'b>> where 'a: 'b {
     phantom: PhantomData<&'a ArchetypeStorage>,
     entities: &'a [Entity],
     ptr: <T::ValueType as ComponentTuple>::PtrType,
@@ -229,7 +229,7 @@ pub struct ArchetypeIter<'a, T: ComponentBorrowTuple<'a>> {
 unsafe impl Send for ArchetypeStorage {}
 unsafe impl Sync for ArchetypeStorage {}
 
-impl<'a, T: ComponentBorrowTuple<'a>> Iterator for ArchetypeIter<'a, T> {
+impl<'a, 'b, T: ComponentBorrowTuple<'b>> Iterator for ArchetypeIter<'a, 'b, T> {
     type Item = (Entity, T);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -244,7 +244,7 @@ impl<'a, T: ComponentBorrowTuple<'a>> Iterator for ArchetypeIter<'a, T> {
     }
 }
 
-pub struct ArchetypeChunks<'a, T: ComponentBorrowTuple<'a>> {
+pub struct ArchetypeChunks<'a, 'b, T: ComponentBorrowTuple<'b>> {
     phantom: PhantomData<&'a ArchetypeStorage>,
     entities: &'a [Entity],
     ptr: <T::ValueType as ComponentTuple>::PtrType,
@@ -253,8 +253,8 @@ pub struct ArchetypeChunks<'a, T: ComponentBorrowTuple<'a>> {
     chunk_size: usize,
 }
 
-impl<'a, T: ComponentBorrowTuple<'a>> Iterator for ArchetypeChunks<'a, T> {
-    type Item = ArchetypeChunk<'a, T>;
+impl<'a, 'b, T: ComponentBorrowTuple<'b>> Iterator for ArchetypeChunks<'a, 'b, T> {
+    type Item = ArchetypeChunk<'a, 'b, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.curr < self.end {
@@ -274,7 +274,7 @@ impl<'a, T: ComponentBorrowTuple<'a>> Iterator for ArchetypeChunks<'a, T> {
     }
 }
 
-pub struct ArchetypeChunk<'a, T: ComponentBorrowTuple<'a>> {
+pub struct ArchetypeChunk<'a, 'b, T: ComponentBorrowTuple<'b>> {
     phantom: PhantomData<&'a ArchetypeStorage>,
     entities: &'a [Entity],
     ptr: <T::ValueType as ComponentTuple>::PtrType,
@@ -282,10 +282,10 @@ pub struct ArchetypeChunk<'a, T: ComponentBorrowTuple<'a>> {
     end: usize,
 }
 
-unsafe impl<'a, T: ComponentBorrowTuple<'a>> Sync for ArchetypeChunk<'a, T> where T::ValueType: Sync {}
-unsafe impl<'a, T: ComponentBorrowTuple<'a>> Send for ArchetypeChunk<'a, T> where T::ValueType: Sync {}
+unsafe impl<'a, 'b, T: ComponentBorrowTuple<'b>> Sync for ArchetypeChunk<'a, 'b, T> where T::ValueType: Sync {}
+unsafe impl<'a, 'b, T: ComponentBorrowTuple<'b>> Send for ArchetypeChunk<'a, 'b, T> where T::ValueType: Sync {}
 
-impl<'a, T: ComponentBorrowTuple<'a>> Iterator for ArchetypeChunk<'a, T> {
+impl<'a, 'b, T: ComponentBorrowTuple<'b>> Iterator for ArchetypeChunk<'a, 'b, T> {
     type Item = (Entity, T);
 
     fn next(&mut self) -> Option<Self::Item> {

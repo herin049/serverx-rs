@@ -147,5 +147,5 @@ pub enum GameEvent {
     PlayElderGuardianMobAppearance,
     EnableRespawnScreen,
     LimitedCrafting,
-    StartWaitingForLevelChunks
+    StartWaitingForLevelChunks,
 }

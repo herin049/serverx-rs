@@ -1,9 +1,7 @@
 pub mod flat;
 
-use serverx_world::chunk::Chunk;
-
-use crate::chunk::store::ChunkPosition;
+use serverx_world::{chunk::Chunk, position::ChunkPosition};
 
 pub trait ChunkGenerator {
-    fn generate(&self, chunk_position: ChunkPosition) -> Chunk;
+    fn generate(&self, position: ChunkPosition) -> Chunk;
 }

@@ -1,24 +1,20 @@
 use serverx_block::blocks::Block;
 use serverx_common::{collections::bit_vec::BitVec, identifier};
-use serverx_game::chunk::{
-    generators::{flat::FlatGeneratorBuilder, ChunkGenerator},
-    store::ChunkPosition,
-};
+use serverx_game::chunk::generators::{flat::FlatGeneratorBuilder, ChunkGenerator};
 use serverx_macros::identifier;
 use serverx_protocol::{
     chunk::encode_chunk,
     v765::{
         clientbound::{
-            ChangeDifficulty, ChunkDataAndLight, DefaultSpawnPosition, FeatureFlags, GameJoin,
-            PlayerAbilities, RegistryData, ServerFinishConfiguration, SyncPlayerPosition,
+            ChangeDifficulty, ChunkBatchFinish, ChunkBatchStart, ChunkDataAndLight,
+            DefaultSpawnPosition, FeatureFlags, GameJoin, PlayerAbilities, RegistryData,
+            ServerFinishConfiguration, ServerGameEvent, SetCenterChunk, SyncPlayerPosition,
             UpdateTags,
         },
-        types::{ChunkLighting, Difficulty, GameMode, LastGameMode},
+        types::{ChunkLighting, Difficulty, GameEvent, GameMode, LastGameMode},
     },
 };
 use tracing::instrument;
-use serverx_protocol::v765::clientbound::{ChunkBatchFinish, ChunkBatchStart, ServerGameEvent, SetCenterChunk};
-use serverx_protocol::v765::types::GameEvent;
 
 use crate::{
     client::{status::ClientStatus, Client},
@@ -84,18 +80,20 @@ pub fn update_client(client: &mut Client, server: &mut Server) {
                 fly_speed: 0.5,
                 fov_modifier: 0.1,
             }));
-            
-            let _ = client.outgoing.send(Box::new(SetCenterChunk {
-                x: 0,
-                z: 0,
-            }));
+
+            let _ = client
+                .outgoing
+                .send(Box::new(SetCenterChunk { x: 0, z: 0 }));
 
             let generator = FlatGeneratorBuilder::new(384)
                 .layer(Block::IronBlock, 64)
                 .build();
-            let chunk = generator.generate(ChunkPosition { x: 0, z: 0 });
+            let chunk = generator.generate((0, 0));
             // println!("{:?}", chunk.sections().get(4).unwrap().blocks);
-            let _ = client.outgoing.send(Box::new(ServerGameEvent { event: GameEvent::StartWaitingForLevelChunks, value: 0.0 }));
+            let _ = client.outgoing.send(Box::new(ServerGameEvent {
+                event: GameEvent::StartWaitingForLevelChunks,
+                value: 0.0,
+            }));
             let _ = client.outgoing.send(Box::new(ChunkBatchStart));
             if let Ok(encoded) = encode_chunk(&chunk) {
                 let heightmaps = chunk.heightmaps_tag();
@@ -119,7 +117,9 @@ pub fn update_client(client: &mut Client, server: &mut Server) {
                     }
                 }
             }
-            let _ = client.outgoing.send(Box::new(ChunkBatchFinish { size: 49 }));
+            let _ = client
+                .outgoing
+                .send(Box::new(ChunkBatchFinish { size: 49 }));
             let _ = client.outgoing.send(Box::new(DefaultSpawnPosition {
                 location: (0, 10, 0),
                 angle: 0.0,

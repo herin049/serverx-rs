@@ -8,3 +8,4 @@ slab = "0.4.9"
 itertools = "0.12.1"
 serverx-macros = { path = "../macros" }
 rayon = "1.10.0"
+thread_local = "1.1.8"

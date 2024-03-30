@@ -1,7 +1,7 @@
 use serverx_block::blocks::Block;
-use serverx_world::chunk::Chunk;
+use serverx_world::{chunk::Chunk, position::ChunkPosition};
 
-use crate::chunk::{generators::ChunkGenerator, store::ChunkPosition};
+use crate::chunk::generators::ChunkGenerator;
 
 pub struct FlatGeneratorBuilder {
     layers: Vec<Block>,
@@ -43,7 +43,7 @@ pub struct FlatGenerator {
 }
 
 impl ChunkGenerator for FlatGenerator {
-    fn generate(&self, chunk_position: ChunkPosition) -> Chunk {
+    fn generate(&self, _position: ChunkPosition) -> Chunk {
         let mut chunk = Chunk::new(self.world_height);
         for (y, b) in self.layers.iter().enumerate().rev() {
             for x in 0..Chunk::WIDTH {

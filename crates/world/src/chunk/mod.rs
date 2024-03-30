@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Formatter};
+
 use serverx_block::states::BlockState;
 use serverx_macros::nbt;
 
@@ -12,6 +14,7 @@ use crate::{
 pub mod height;
 pub mod section;
 
+#[derive(Clone)]
 pub struct Chunk {
     sections: Vec<ChunkSection>,
     motion_blocking: Heightmap<MotionBlockingPred>,
@@ -71,5 +74,13 @@ impl Chunk {
             "MOTION_BLOCKING": motion_blocking,
             "WORLD_SURFACE": world_surface
         })
+    }
+}
+
+impl Debug for Chunk {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut debug_list = f.debug_list();
+        debug_list.entries(self.sections.iter());
+        debug_list.finish()
     }
 }

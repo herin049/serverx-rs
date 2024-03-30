@@ -168,7 +168,7 @@ pub struct ChangeDifficulty {
 #[packet(0x0C, ClientBound, Play)]
 pub struct ChunkBatchFinish {
     #[proto(repr = "VarInt")]
-    pub size: i32
+    pub size: i32,
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
@@ -179,7 +179,7 @@ pub struct ChunkBatchStart;
 #[packet(0x20, ClientBound, Play)]
 pub struct ServerGameEvent {
     pub event: GameEvent,
-    pub value: f32
+    pub value: f32,
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]
@@ -248,7 +248,7 @@ pub struct SetCenterChunk {
     #[proto(repr = "VarInt")]
     pub x: i32,
     #[proto(repr = "VarInt")]
-    pub z: i32
+    pub z: i32,
 }
 
 #[derive(Packet, ProtoEncode, ProtoDecode, Debug, Clone)]

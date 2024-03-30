@@ -12,6 +12,7 @@ pub trait HeightmapPred {
     fn test(block_state: BlockState) -> bool;
 }
 
+#[derive(Clone)]
 pub struct MotionBlockingPred;
 
 impl HeightmapPred for MotionBlockingPred {
@@ -20,6 +21,7 @@ impl HeightmapPred for MotionBlockingPred {
     }
 }
 
+#[derive(Clone)]
 pub struct WorldSurfacePred;
 
 impl HeightmapPred for WorldSurfacePred {
@@ -28,6 +30,7 @@ impl HeightmapPred for WorldSurfacePred {
     }
 }
 
+#[derive(Clone)]
 pub struct Heightmap<P: HeightmapPred> {
     phantom: PhantomData<P>,
     heights: PackedVec,
