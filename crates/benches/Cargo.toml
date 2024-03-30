@@ -4,14 +4,17 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+criterion = "0.5.1"
+serverx-block = { path = "../block" }
+serverx-ecs = { path = "../ecs" }
+serverx-world = { path = "../world" }
+serverx-game = { path = "../game" }
+serverx-protocol = { path = "../protocol" }
+rand = "0.8.5"
+evenio = { version = "0.4.2", features = ["rayon"]}
+thread_local = "1.1.8"
 
 [dev-dependencies]
-criterion = "0.5.1"
-#serverx-block = { path = "../block" }
-serverx-ecs = { path = "../ecs" }
-rand = "0.8.5"
-evenio = "0.4.2"
-thread_local = "1.1.8"
 
 [[bench]]
 name = "benchmark"
