@@ -63,19 +63,20 @@ fn pipeline_impl_n(count: usize) -> TokenStream {
                 for archetype in registry_cell.archetypes() {
                     #(let mut #var0 = if util::subset(<<#ty_idents as SystemIter<'b>>::Local as BorrowTuple<'b>>::ValueType::type_ids().as_ref(), archetype.type_ids()) {
                         unsafe {
-                            UnsafeArchetypeCell(archetype).partitions_mut::<'_, 'b, #ty_idents::Local>(self.pipeline.1)
+                            archetype.table().partitions_mut::<'_, '_, 'b, #ty_idents::Local>(self.pipeline.1)
                         }
                     } else {
-                        ArchetypePartitionsMut::empty()
+                        TablePartitionsMut::empty()
                     };)*
 
                     loop {
                         let mut some = false;
                         #(if let Some(mut chunk) = #var0.next() {
                             let mut accessor = Accessor::<'_, 'b, #ty_idents::Local, #ty_idents::Global>::new(registry_cell.clone());
-                            for (entity, values) in chunk.iter() {
-                                accessor.entity = entity;
-                                self.pipeline.0.#ty_indexes.iter(entity, values, &mut accessor);
+                            accessor.iter_pos = (archetype.id(), chunk.start() as ArchetypeIdx);
+                            for values in chunk.iter() {
+                                self.pipeline.0.#ty_indexes.iter(values, &mut accessor);
+                                accessor.iter_pos.1 += 1;
                             }
                             some = true;
                         })*
@@ -123,10 +124,10 @@ fn pipeline_impl_n(count: usize) -> TokenStream {
                     for archetype in registry_cell.archetypes() {
                         #(let mut #var0 = if util::subset(<#ty_idents::Local as BorrowTuple<'b>>::ValueType::type_ids().as_ref(), archetype.type_ids()) {
                             unsafe {
-                                UnsafeArchetypeCell(archetype).partitions_mut::<'_, 'b, #ty_idents::Local>(self_ref.pipeline.1)
+                                archetype.table().partitions_mut::<'_, '_, 'b, #ty_idents::Local>(self.pipeline.1)
                             }
                         } else {
-                            ArchetypePartitionsMut::empty()
+                            TablePartitionsMut::empty()
                         };)*
 
                         loop {
@@ -135,12 +136,13 @@ fn pipeline_impl_n(count: usize) -> TokenStream {
                                 break;
                             }
                             let registry_cell_copy = registry_cell.clone();
+                            let archetype_id = archetype.id();
                             s.spawn(move |_| {
                                 #(if let Some(mut chunk) = #var1 {
                                     let mut accessor = Accessor::<'_, 'b, #ty_idents::Local, #ty_idents::Global>::new(registry_cell_copy.clone());
-                                    for (entity, values) in chunk.iter() {
-                                        accessor.entity = entity;
-                                        self_ref.pipeline.0.#ty_indexes.iter(entity, values, &mut accessor);
+                                    accessor.iter_pos = (archetype_id, chunk.start() as ArchetypeIdx);
+                                    for values in chunk.iter() {
+                                       self_ref.pipeline.0.#ty_indexes.iter(values, &mut accessor);
                                     }
                                 })*
                             });

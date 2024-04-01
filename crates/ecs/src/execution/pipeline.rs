@@ -3,7 +3,7 @@ use std::{any::TypeId, collections::BTreeSet, iter, marker::PhantomData};
 use serverx_macros::ecs_pipeline_impl;
 
 use crate::{
-    archetype::{ArchetypePartitionsMut, UnsafeArchetypeCell},
+    archetype::{UnsafeArchetypeCell},
     execution::{
         iter::{SystemIter, SystemParIter},
         run::{Runnable, RunnablePar},
@@ -12,6 +12,9 @@ use crate::{
     tuple::{borrow::BorrowTuple, value::ValueTuple},
     util,
 };
+use crate::storage::table::TablePartitionsMut;
+use crate::archetype::ArchetypeId;
+use crate::archetype::ArchetypeIdx;
 
 pub trait SystemPipeline<'a>: Sized + 'a {
     fn runnable(self) -> SystemPipelineRunnable<'a, Self> {
@@ -175,14 +178,14 @@ mod tests {
         'b: 'a,
     {
         type Global = ();
-        type Local = (&'a mut Position, &'a Velocity);
+        type Local = (&'a mut Position, &'a Entity, &'a Velocity);
 
         fn iter(
             &mut self,
-            entity: Entity,
-            (p, v): Self::Local,
+            (p, e, v): Self::Local,
             accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
         ) {
+            println!("{:?}", e);
             p.0 += v.0;
             p.1 += v.1;
             p.2 += v.2;
@@ -194,14 +197,14 @@ mod tests {
         'b: 'a,
     {
         type Global = ();
-        type Local = (&'a mut Position, &'a Velocity);
+        type Local = (&'a Entity, &'a mut Position, &'a Velocity);
 
         fn iter(
             &self,
-            entity: Entity,
-            (p, v): Self::Local,
+            (e, p, v): Self::Local,
             accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
         ) {
+            println!("{:?}", e);
             p.0 += v.0;
             p.1 += v.1;
             p.2 += v.2;

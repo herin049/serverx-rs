@@ -9,11 +9,12 @@ use crate::{
     },
     util,
 };
+use crate::archetype::{ArchetypeId, ArchetypeIdx};
 
 pub struct Accessor<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> {
     phantom: PhantomData<&'b (L, G)>,
     registry: UnsafeRegistryCell<'a>,
-    pub(crate) entity: Entity,
+    pub(crate) iter_pos: (ArchetypeId, ArchetypeIdx),
 }
 
 impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<'a, 'b, L, G> {
@@ -24,7 +25,7 @@ impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<
         Self {
             phantom: PhantomData,
             registry,
-            entity: Entity::default(),
+            iter_pos: (ArchetypeId::MAX, ArchetypeIdx::MAX)
         }
     }
 
@@ -41,11 +42,15 @@ impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<
         'a: 'c,
     {
         let type_ids = T::ValueType::type_ids();
-        if entity == self.entity
-            && !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref())
-        {
-            panic!("invalid get");
-        } else if !util::subset(type_ids.as_ref(), G::ValueType::type_ids().as_ref()) {
+        if entity.archetype_id() == self.iter_pos.0 {
+            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity) == Some(self.iter_pos.1 as usize) {
+                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref())
+                {
+                    panic!("invalid get");
+                }
+            }
+        }
+        if !util::subset(type_ids.as_ref(), G::ValueType::type_ids().as_ref()) {
             panic!("invalid get");
         }
         unsafe { self.registry.get::<'c, T>(entity) }
@@ -56,11 +61,15 @@ impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<
         'a: 'c,
     {
         let type_ids = T::ValueType::type_ids();
-        if entity == self.entity
-            && !util::disjoint(type_ids.as_ref(), L::ValueType::type_ids().as_ref())
-        {
-            panic!("invalid get mut");
-        } else if !util::subset(
+        if entity.archetype_id() == self.iter_pos.0 {
+            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity) == Some(self.iter_pos.1 as usize) {
+                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref())
+                {
+                    panic!("invalid get");
+                }
+            }
+        }
+        if !util::subset(
             T::ReadType::type_ids().as_ref(),
             G::ValueType::type_ids().as_ref(),
         ) || !util::subset(

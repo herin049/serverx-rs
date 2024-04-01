@@ -1,5 +1,6 @@
 use core::fmt::{Debug, Formatter};
 use std::{any::TypeId, cmp, marker::PhantomData};
+use std::ops::Range;
 
 use crate::{
     storage::column::Column,
@@ -23,6 +24,20 @@ pub struct Table {
 pub struct TryAsPtrError;
 
 impl Table {
+    pub unsafe fn from_raw_parts(columns: Box<[Column]>, type_ids: Box<[TypeId]>)  -> Self {
+        let mut column_ptrs = Vec::with_capacity(columns.len());
+        for c in columns.iter() {
+            column_ptrs.push(c.as_ptr() as *mut u8);
+        }
+        Self {
+            column_ptrs: column_ptrs.into_boxed_slice(),
+            len: 0,
+            cap: 0,
+            columns,
+            type_ids
+        }
+    }
+
     pub fn new<L: TableLayout>() -> Self {
         let columns = L::columns().into();
         let type_ids = L::type_ids().into();
@@ -38,6 +53,7 @@ impl Table {
             type_ids: L::type_ids().into(),
         }
     }
+
 
     pub fn try_as_mut_ptr<T: ValueTuple>(&self) -> Result<T::PtrType, TryAsPtrError> {
         let type_ids = T::type_ids();
@@ -66,6 +82,14 @@ impl Table {
 
     pub fn len(&self) -> usize {
         self.len
+    }
+
+    pub fn column(&self, column_idx: usize) -> &Column {
+        &self.columns[column_idx]
+    }
+
+    pub unsafe fn column_unchecked(&self, column_idx: usize) -> &Column {
+        self.columns.get_unchecked(column_idx)
     }
 
     pub fn type_ids(&self) -> &[TypeId] {
@@ -155,6 +179,20 @@ impl Table {
         }
     }
 
+
+    pub unsafe fn iter_range<'a, 'b, 'c, T: RefTuple<'c>>(&'a self, range: Range<usize>) -> TableIter<'b, 'c, T>
+        where
+            'a: 'b,
+            'b: 'c,
+    {
+        TableIter {
+            phantom: PhantomData,
+            ptr: self.as_mut_ptr::<T::ValueType>(),
+            curr: cmp::min(range.start, self.len),
+            end: cmp::min(range.end, self.len),
+        }
+    }
+
     pub unsafe fn iter_mut<'a, 'b, 'c, T: BorrowTuple<'c>>(&'a self) -> TableIterMut<'b, 'c, T>
     where
         'a: 'b,
@@ -165,6 +203,19 @@ impl Table {
             ptr: self.as_mut_ptr::<T::ValueType>(),
             curr: 0,
             end: self.len,
+        }
+    }
+
+    pub unsafe fn iter_range_mut<'a, 'b, 'c, T: BorrowTuple<'c>>(&'a self, range: Range<usize>) -> TableIterMut<'b, 'c, T>
+        where
+            'a: 'b,
+            'b: 'c,
+    {
+        TableIterMut {
+            phantom: PhantomData,
+            ptr: self.as_mut_ptr::<T::ValueType>(),
+            curr: cmp::min(range.start, self.len),
+            end: cmp::min(range.end, self.len),
         }
     }
 }
@@ -219,6 +270,18 @@ where
     size: usize,
     curr: usize,
     end: usize,
+}
+
+impl<'a, 'b, T: BorrowTuple<'b>> TablePartitionsMut<'a, 'b, T> where 'a: 'b {
+    pub fn empty() -> Self {
+        Self {
+            phantom: PhantomData,
+            ptr: <T::ValueType as ValueTuple>::PtrType::null_ptr(),
+            size: 0,
+            curr: 0,
+            end: 0
+        }
+    }
 }
 
 impl<'a, 'b, T: BorrowTuple<'b>> Iterator for TablePartitionsMut<'a, 'b, T>
@@ -280,10 +343,20 @@ where
     end: usize,
 }
 
+unsafe impl<'a, 'b, T: BorrowTuple<'b>> Send for TablePartitionMut<'a, 'b, T> where 'a: 'b {}
+
 impl<'a, 'b, T: BorrowTuple<'b>> TablePartitionMut<'a, 'b, T>
 where
     'a: 'b,
 {
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
     pub fn iter<'c>(&mut self) -> TableIterMut<'c, 'b, T>
     where
         'c: 'b,

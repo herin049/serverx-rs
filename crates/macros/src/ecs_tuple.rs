@@ -37,22 +37,27 @@ pub fn typle_impl_n(count: usize) -> TokenStream {
         impl<#(#ty_idents),*> PtrTuple for (#(*mut #ty_idents,)*) {
             type PtrArray = [*mut u8; #count];
 
+            #[inline(always)]
             fn null_ptr_slice() -> Self::PtrArray {
                 [std::ptr::null_mut(); #count]
             }
 
+            #[inline(always)]
             fn null_ptr() -> Self {
                 (#(std::ptr::null_mut::<#ty_idents>(),)*)
             }
 
+            #[inline(always)]
             unsafe fn from_ptr_slice(ptrs: &[*mut u8]) -> Self {
                 (#(*ptrs.get_unchecked(#ty_indexes) as *mut #ty_idents,)*)
             }
 
+            #[inline(always)]
             unsafe fn offset(self, count: isize) -> Self {
                 (#(self.#ty_indexes.offset(count),)*)
             }
 
+            #[inline(always)]
             unsafe fn add(self, count: usize) -> Self {
                 (#(self.#ty_indexes.add(count),)*)
             }
@@ -62,14 +67,17 @@ pub fn typle_impl_n(count: usize) -> TokenStream {
             type PtrType = (#(*mut #ty_idents,)*);
             type TypeIdArray = [TypeId; #count];
 
+            #[inline(always)]
             fn type_ids() -> Self::TypeIdArray {
                 [#(TypeId::of::<#ty_idents>()),*]
             }
 
+            #[inline(always)]
             unsafe fn write(self, ptr: Self::PtrType) {
                 #(std::ptr::write(ptr.#ty_indexes, self.#ty_indexes));*
             }
 
+            #[inline(always)]
             unsafe fn read(ptr: Self::PtrType) -> Self {
                 (#(std::ptr::read::<#ty_idents>(ptr.#ty_indexes as *const #ty_idents),)*)
             }
@@ -78,6 +86,7 @@ pub fn typle_impl_n(count: usize) -> TokenStream {
         impl<#(#ty_idents: 'static + Sized + Debug),*> TableLayout for (#(#ty_idents,)*) {
             type ColumnArray = [Column; #count];
 
+            #[inline(always)]
             fn columns() -> Self::ColumnArray {
                 [#(Column::new::<#ty_idents>()),*]
             }
@@ -122,6 +131,7 @@ pub fn typle_impl_n(count: usize) -> TokenStream {
             type ReadType = <<(#(#ty_idents_tail,)*) as BorrowTuple<'a>>::ReadType as TupleAddRef<#ty_idents_head>>::Result;
             type WriteType = <<(#(#ty_idents_tail,)*) as BorrowTuple<'a>>::WriteType as TupleAddMut<#ty_idents_head>>::Result;
 
+            #[inline(always)]
             unsafe fn deref(ptr: <Self::ValueType as ValueTuple>::PtrType) -> Self {
                (#(#ty_idents::deref(ptr.#ty_indexes),)*)
             }

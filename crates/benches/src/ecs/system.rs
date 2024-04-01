@@ -18,7 +18,6 @@ impl<'a> SystemIter<'a> for SimpleSystem {
 
     fn iter(
         &mut self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -36,7 +35,6 @@ impl<'a> SystemParIter<'a> for SimpleSystemPar {
 
     fn iter(
         &self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {

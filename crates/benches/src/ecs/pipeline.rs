@@ -21,7 +21,6 @@ impl<'a> SystemIter<'a> for SimpleIterA {
 
     fn iter(
         &mut self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -39,7 +38,6 @@ impl<'a> SystemParIter<'a> for SimpleParIterA {
 
     fn iter(
         &self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -57,7 +55,6 @@ impl<'a> SystemIter<'a> for SimpleIterB {
 
     fn iter(
         &mut self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -75,7 +72,6 @@ impl<'a> SystemParIter<'a> for SimpleParIterB {
 
     fn iter(
         &self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -93,7 +89,6 @@ impl<'a> SystemIter<'a> for SimpleIterC {
 
     fn iter(
         &mut self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
@@ -111,7 +106,6 @@ impl<'a> SystemParIter<'a> for SimpleParIterC {
 
     fn iter(
         &self,
-        _entity: Entity,
         (a, b, c): Self::Local,
         _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {

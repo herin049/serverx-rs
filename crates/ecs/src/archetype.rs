@@ -1,5 +1,5 @@
 use core::fmt::{Debug, Formatter};
-use std::{any::TypeId, cmp, marker::PhantomData, ops::Range};
+use std::{any::TypeId, cmp, marker::PhantomData, ops::Range, slice};
 
 use slab::Slab;
 
@@ -13,6 +13,7 @@ use crate::{
         value::ValueTuple,
     },
 };
+use crate::storage::column::Column;
 
 pub type Generation = u64;
 pub type ArchetypeId = u32;
@@ -20,7 +21,6 @@ pub type ArchetypeIdx = u32;
 
 pub struct Archetype {
     table: Table,
-    entities: Vec<Entity>,
     entity_lookup: Slab<usize>,
     generation: Generation,
     id: ArchetypeId,
@@ -28,13 +28,27 @@ pub struct Archetype {
 
 impl Archetype {
     pub fn new<T: ComponentTuple>(id: ArchetypeId) -> Self {
-        Self {
-            table: Table::new::<T>(),
-            entities: Vec::new(),
-            entity_lookup: Slab::new(),
-            generation: 1,
-            id,
+        let mut component_columns = T::columns();
+        let mut columns = Vec::with_capacity(component_columns.as_ref().len());
+        columns.push(Column::new::<Entity>());
+        columns.extend(component_columns.into_iter());
+        let mut component_type_ids = T::type_ids();
+        let mut type_ids = Vec::with_capacity(component_type_ids.as_ref().len());
+        type_ids.push(TypeId::of::<Entity>());
+        type_ids.extend(component_type_ids.into_iter());
+        unsafe {
+            Self {
+                table: Table::from_raw_parts(columns.into_boxed_slice(), type_ids.into_boxed_slice()),
+                entity_lookup: Slab::new(),
+                generation: 1,
+                id
+            }
+
         }
+    }
+
+    pub fn id(&self) -> ArchetypeId {
+        self.id
     }
 
     pub fn len(&self) -> usize {
@@ -46,20 +60,31 @@ impl Archetype {
     }
 
     pub fn entities(&self) -> &[Entity] {
-        self.entities.as_slice()
+        unsafe {
+            let column = self.table.column_unchecked(0);
+            slice::from_raw_parts(column.as_ptr::<Entity>().cast_const(), self.table.len())
+        }
     }
 
     pub fn type_ids(&self) -> &[TypeId] {
         self.table.type_ids()
     }
 
+    pub fn index_of(&self, entity: Entity) -> Option<usize> {
+        self.entity_lookup.get(entity.archetype_idx() as usize).map(|i| *i)
+    }
+
     pub fn push<T: ComponentTuple>(&mut self, values: T) -> Entity {
+        let table_len = self.table.len();
         unsafe {
             self.table.push(values);
         }
-        let archetype_idx = self.entity_lookup.insert(self.entities.len()) as ArchetypeIdx;
+        let archetype_idx = self.entity_lookup.insert(table_len) as ArchetypeIdx;
         let entity = Entity::new(self.generation, self.id, archetype_idx);
-        self.entities.push(entity);
+        self.generation = self.generation.wrapping_add(1);
+        unsafe {
+            self.table.column(0).as_ptr::<Entity>().add(table_len).write(entity);
+        }
         entity
     }
 
@@ -69,7 +94,7 @@ impl Archetype {
     {
         if let Some(entity_idx) = self.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.entities.get_unchecked(*entity_idx).generation() == entity.generation() {
+                if *self.entities().get_unchecked(*entity_idx) == entity {
                     if let Ok(ptr) = self.table.try_as_mut_ptr::<T::ValueType>() {
                         return Some(T::deref(ptr));
                     }
@@ -85,7 +110,7 @@ impl Archetype {
     {
         if let Some(entity_idx) = self.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.entities.get_unchecked(*entity_idx).generation() == entity.generation() {
+                if self.entities().get_unchecked(*entity_idx).generation() == entity.generation() {
                     if let Ok(ptr) = self.table.try_as_mut_ptr::<T::ValueType>() {
                         return Some(T::deref(ptr));
                     }
@@ -99,7 +124,7 @@ impl Archetype {
         let mut entity_idx = 0;
         if let Some(i) = self.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.entities.get_unchecked(*i).generation() != entity.generation() {
+                if self.entities().get_unchecked(*i).generation() != entity.generation() {
                     return false;
                 }
             }
@@ -109,12 +134,11 @@ impl Archetype {
         }
         unsafe {
             *self.entity_lookup.get_unchecked_mut(
-                self.entities
-                    .get_unchecked(self.entities.len() - 1)
+                self.entities()
+                    .get_unchecked(self.table.len() - 1)
                     .archetype_idx() as usize,
             ) = entity_idx;
             self.table.swap_remove(entity_idx);
-            self.entities.swap_remove(entity_idx);
             self.entity_lookup.remove(entity.archetype_idx() as usize);
             true
         }
@@ -123,110 +147,12 @@ impl Archetype {
     pub fn contains(&self, entity: Entity) -> bool {
         if let Some(idx) = self.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.entities.get_unchecked(*idx).generation() == entity.generation() {
+                if self.entities().get_unchecked(*idx).generation() == entity.generation() {
                     return true;
                 }
             }
         }
         false
-    }
-
-    pub fn partitions<'a, 'b, 'c, T: RefTuple<'c>>(
-        &'a self,
-        partition_size: usize,
-    ) -> ArchetypePartitions<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypePartitions {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            size: partition_size,
-            curr: 0,
-            end: self.entities.len(),
-        }
-    }
-
-    pub fn partitions_mut<'a, 'b, 'c, T: BorrowTuple<'c>>(
-        &'a mut self,
-        partition_size: usize,
-    ) -> ArchetypePartitionsMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypePartitionsMut {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            size: partition_size,
-            curr: 0,
-            end: self.entities.len(),
-        }
-    }
-
-    pub fn iter<'a, 'b, 'c, T: RefTuple<'c>>(&'a self) -> ArchetypeIter<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIter {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            curr: 0,
-            end: self.entities.len(),
-        }
-    }
-
-    pub fn iter_range<'a, 'b, 'c, T: RefTuple<'c>>(
-        &'a self,
-        range: Range<usize>,
-    ) -> ArchetypeIter<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIter {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            curr: cmp::min(range.start, self.entities.len()),
-            end: cmp::min(range.end, self.entities.len()),
-        }
-    }
-
-    pub fn iter_mut<'a, 'b, 'c, T: BorrowTuple<'c>>(&'a mut self) -> ArchetypeIterMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIterMut {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            curr: 0,
-            end: self.entities.len(),
-        }
-    }
-
-    pub fn iter_range_mut<'a, 'b, 'c, T: BorrowTuple<'c>>(
-        &'a mut self,
-        range: Range<usize>,
-    ) -> ArchetypeIterMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIterMut {
-            phantom: PhantomData,
-            entities: self.entities.as_slice(),
-            ptr: self.table.as_mut_ptr::<T::ValueType>(),
-            curr: cmp::min(range.start, self.entities.len()),
-            end: cmp::min(range.end, self.entities.len()),
-        }
     }
 }
 
@@ -249,7 +175,7 @@ impl<'a> UnsafeArchetypeCell<'a> {
     {
         if let Some(entity_idx) = self.0.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.0.entities.get_unchecked(*entity_idx).generation() == entity.generation() {
+                if self.0.entities().get_unchecked(*entity_idx).generation() == entity.generation() {
                     if let Ok(ptr) = self.0.table.try_as_mut_ptr::<T::ValueType>() {
                         return Some(T::deref(ptr));
                     }
@@ -259,295 +185,8 @@ impl<'a> UnsafeArchetypeCell<'a> {
         None
     }
 
-    pub unsafe fn partitions<'b, 'c, T: RefTuple<'c>>(
-        &self,
-        partition_size: usize,
-    ) -> ArchetypePartitions<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        self.0.partitions::<'a, 'b, 'c, T>(partition_size)
-    }
-
-    pub unsafe fn partitions_mut<'b, 'c, T: BorrowTuple<'c>>(
-        &self,
-        partition_size: usize,
-    ) -> ArchetypePartitionsMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypePartitionsMut {
-            phantom: PhantomData,
-            entities: self.0.entities.as_slice(),
-            ptr: self.0.table.as_mut_ptr::<T::ValueType>(),
-            size: partition_size,
-            curr: 0,
-            end: self.0.entities.len(),
-        }
-    }
-
-    pub unsafe fn iter<'b, 'c, T: RefTuple<'c>>(&self) -> ArchetypeIter<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        self.0.iter::<'a, 'b, 'c, T>()
-    }
-
-    pub unsafe fn iter_range<'b, 'c, T: RefTuple<'c>>(
-        &self,
-        range: Range<usize>,
-    ) -> ArchetypeIter<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        self.0.iter_range::<'a, 'b, 'c, T>(range)
-    }
-
-    pub unsafe fn iter_mut<'b, 'c, T: BorrowTuple<'c>>(&self) -> ArchetypeIterMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIterMut {
-            phantom: PhantomData,
-            entities: self.0.entities.as_slice(),
-            ptr: self.0.table.as_mut_ptr::<T::ValueType>(),
-            curr: 0,
-            end: self.0.entities.len(),
-        }
-    }
-
-    pub fn iter_range_mut<'b, 'c, T: BorrowTuple<'c>>(
-        &self,
-        range: Range<usize>,
-    ) -> ArchetypeIterMut<'b, 'c, T>
-    where
-        'a: 'b,
-        'b: 'c,
-    {
-        ArchetypeIterMut {
-            phantom: PhantomData,
-            entities: self.0.entities.as_slice(),
-            ptr: self.0.table.as_mut_ptr::<T::ValueType>(),
-            curr: cmp::min(range.start, self.0.entities.len()),
-            end: cmp::min(range.end, self.0.entities.len()),
-        }
-    }
-}
-
-pub struct ArchetypePartitions<'a, 'b, T: RefTuple<'b>>
-where
-    'a: 'b,
-{
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    size: usize,
-    curr: usize,
-    end: usize,
-}
-
-unsafe impl<'a, 'b, T: RefTuple<'b>> Send for ArchetypePartitions<'a, 'b, T> where T: Send {}
-
-impl<'a, 'b, T: RefTuple<'b>> Iterator for ArchetypePartitions<'a, 'b, T>
-where
-    'a: 'b,
-{
-    type Item = ArchetypePartition<'a, 'b, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.curr < self.end {
-            Some(ArchetypePartition {
-                phantom: PhantomData,
-                entities: &self.entities,
-                ptr: self.ptr,
-                start: self.curr,
-                end: cmp::min(self.curr + self.size, self.end),
-            })
-        } else {
-            None
-        };
-        self.curr += self.size;
-        result
-    }
-}
-
-pub struct ArchetypePartitionsMut<'a, 'b, T: BorrowTuple<'b>> {
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    size: usize,
-    curr: usize,
-    end: usize,
-}
-
-impl<'a, 'b, T: BorrowTuple<'b>> ArchetypePartitionsMut<'a, 'b, T> {
-    pub fn empty() -> Self {
-        Self {
-            phantom: PhantomData,
-            entities: &[],
-            ptr: <T::ValueType as ValueTuple>::PtrType::null_ptr(),
-            size: 0,
-            curr: 0,
-            end: 0,
-        }
-    }
-}
-
-unsafe impl<'a, 'b, T: BorrowTuple<'b>> Send for ArchetypePartitionsMut<'a, 'b, T> where T: Send {}
-
-impl<'a, 'b, T: BorrowTuple<'b>> Iterator for ArchetypePartitionsMut<'a, 'b, T>
-where
-    'a: 'b,
-{
-    type Item = ArchetypePartitionMut<'a, 'b, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.curr < self.end {
-            Some(ArchetypePartitionMut {
-                phantom: PhantomData,
-                entities: &self.entities,
-                ptr: self.ptr,
-                start: self.curr,
-                end: cmp::min(self.curr + self.size, self.end),
-            })
-        } else {
-            None
-        };
-        self.curr += self.size;
-        result
-    }
-}
-
-pub struct ArchetypePartition<'a, 'b, T: RefTuple<'b>>
-where
-    'a: 'b,
-{
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    start: usize,
-    end: usize,
-}
-
-unsafe impl<'a, 'b, T: RefTuple<'b>> Send for ArchetypePartition<'a, 'b, T> where T: Send {}
-
-impl<'a, 'b, T: RefTuple<'b>> ArchetypePartition<'a, 'b, T>
-where
-    'a: 'b,
-{
-    pub fn iter<'c>(&self) -> ArchetypeIter<'c, 'b, T>
-    where
-        'c: 'b,
-        'a: 'c,
-    {
-        ArchetypeIter {
-            phantom: PhantomData,
-            entities: &self.entities,
-            ptr: self.ptr,
-            curr: self.start,
-            end: self.end,
-        }
-    }
-}
-
-pub struct ArchetypePartitionMut<'a, 'b, T: BorrowTuple<'b>>
-where
-    'a: 'b,
-{
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    start: usize,
-    end: usize,
-}
-
-unsafe impl<'a, 'b, T: BorrowTuple<'b>> Send for ArchetypePartitionMut<'a, 'b, T> where T: Send {}
-
-impl<'a, 'b, T: BorrowTuple<'b>> ArchetypePartitionMut<'a, 'b, T>
-where
-    'a: 'b,
-{
-    pub fn iter<'c>(&mut self) -> ArchetypeIterMut<'c, 'b, T>
-    where
-        'c: 'b,
-        'a: 'c,
-    {
-        ArchetypeIterMut {
-            phantom: PhantomData,
-            entities: &self.entities,
-            ptr: self.ptr,
-            curr: self.start,
-            end: self.end,
-        }
-    }
-}
-
-pub struct ArchetypeIter<'a, 'b, T: RefTuple<'b>>
-where
-    'a: 'b,
-{
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    curr: usize,
-    end: usize,
-}
-
-impl<'a, 'b, T: RefTuple<'b>> Iterator for ArchetypeIter<'a, 'b, T>
-where
-    'a: 'b,
-{
-    type Item = (Entity, T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.curr < self.end {
-            unsafe {
-                let entity = *self.entities.get_unchecked(self.curr);
-                let values = T::deref(self.ptr.add(self.curr));
-                Some((entity, values))
-            }
-        } else {
-            None
-        };
-        self.curr += 1;
-        result
-    }
-}
-
-pub struct ArchetypeIterMut<'a, 'b, T: BorrowTuple<'b>>
-where
-    'a: 'b,
-{
-    phantom: PhantomData<(UnsafeArchetypeCell<'a>, T)>,
-    entities: &'a [Entity],
-    ptr: <T::ValueType as ValueTuple>::PtrType,
-    curr: usize,
-    end: usize,
-}
-
-impl<'a, 'b, T: BorrowTuple<'b>> Iterator for ArchetypeIterMut<'a, 'b, T>
-where
-    'a: 'b,
-{
-    type Item = (Entity, T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.curr < self.end {
-            unsafe {
-                let entity = *self.entities.get_unchecked(self.curr);
-                let values = T::deref(self.ptr.add(self.curr));
-                Some((entity, values))
-            }
-        } else {
-            None
-        };
-        self.curr += 1;
-        result
+    pub fn table(&self) -> &Table {
+        &self.0.table
     }
 }
 
@@ -558,13 +197,10 @@ pub struct DebugArchetypeEntry<'a> {
 
 impl<'a> Debug for DebugArchetypeEntry<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        let mut debug_tuple = f.debug_tuple("ArchetypeEntry");
-        debug_tuple.field(self.archetype.entities.get(self.index).unwrap());
-        debug_tuple.field(&DebugTableEntry {
+        DebugTableEntry::fmt(&DebugTableEntry {
             table: &self.archetype.table,
             index: self.index,
-        });
-        debug_tuple.finish()
+        }, f)
     }
 }
 

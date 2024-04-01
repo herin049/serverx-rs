@@ -118,12 +118,12 @@ pub fn sorted(c: &mut Criterion) {
 criterion_group!(
     name = benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
-    targets = btree_insert, sorted
+    // targets = btree_insert, sorted
     // targets = registry_pipeline, registry_no_pipeline, registry_par_pipeline, registry_par_no_pipeline
     // targets = registry_system, registry_system_par
     // targets = registry_system, registry_system_par, registry_system_runnable, registry_system_par_runnable
     // targets = registry_system, registry_system_par, evenio_system, evenio_system_par
-    // targets = registry_random, evenio_random, registry_random_seq, evenio_random_seq
+    targets = registry_random, evenio_random, registry_random_seq, evenio_random_seq
     // targets = registry_push, evenio_push
     // targets = registry_push, registry_random, registry_random_seq
     // targets = registry_system, evenio_system

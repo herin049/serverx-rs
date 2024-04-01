@@ -13,6 +13,7 @@ use crate::{
     util,
     util::assert_no_alias,
 };
+use crate::archetype::{ArchetypeId, ArchetypeIdx};
 
 pub trait SystemIter<'a>: Sized + 'a {
     type Local: ComponentBorrowTuple<'a>;
@@ -27,7 +28,6 @@ pub trait SystemIter<'a>: Sized + 'a {
 
     fn iter(
         &mut self,
-        entity: Entity,
         components: Self::Local,
         accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     );
@@ -76,9 +76,10 @@ where
                 archetype.type_ids().as_ref(),
             ) {
                 unsafe {
-                    for (entity, values) in UnsafeArchetypeCell(archetype).iter_mut::<T::Local>() {
-                        accessor.entity = entity;
-                        self.iter.iter(entity, values, &mut accessor);
+                    accessor.iter_pos = (archetype.id(), 0);
+                    for values in archetype.table().iter_mut::<T::Local>() {
+                        accessor.iter_pos.1 += 1;
+                        self.iter.iter(values, &mut accessor);
                     }
                 }
             }
@@ -98,7 +99,6 @@ pub trait SystemParIter<'a>: Sized + Sync + 'a {
     }
     fn iter(
         &self,
-        entity: Entity,
         components: Self::Local,
         accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     );
@@ -153,17 +153,15 @@ where
                     archetype.type_ids(),
                 ) {
                     unsafe {
-                        for mut chunk in
-                            UnsafeArchetypeCell(archetype).partitions_mut::<'_, 'b, T::Local>(4096)
-                        {
+                        for mut chunk in archetype.table().partitions_mut::<'_, '_, 'b, T::Local>(4096) {
                             let registry_cell_copy = registry_cell.clone();
+                            let archetype_id = archetype.id();
                             s.spawn(move |_| {
-                                let mut accessor = Accessor::<'_, 'b, T::Local, T::Global>::new(
-                                    registry_cell_copy,
-                                );
-                                for (entity, values) in chunk.iter() {
-                                    accessor.entity = entity;
-                                    self_ref.iter.iter(entity, values, &mut accessor);
+                                let mut accessor = Accessor::<'_, 'b, T::Local, T::Global>::new(registry_cell_copy);
+                                accessor.iter_pos = (archetype_id, chunk.start() as ArchetypeIdx);
+                                for values in chunk.iter() {
+                                    self_ref.iter.iter(values, &mut accessor);
+                                    accessor.iter_pos.1 += 1;
                                 }
                             });
                         }
@@ -201,14 +199,14 @@ mod tests {
         'b: 'a,
     {
         type Global = ();
-        type Local = (&'a mut Position, &'a Velocity);
+        type Local = (&'a mut Position, &'a Velocity, &'a Entity);
 
         fn iter(
             &mut self,
-            entity: Entity,
-            (p, v): Self::Local,
+            (p, v, e): Self::Local,
             accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
         ) {
+            println!("{:?}", e);
             p.0 += v.0;
             p.1 += v.1;
             p.2 += v.2;
@@ -222,14 +220,14 @@ mod tests {
         'b: 'a,
     {
         type Global = ();
-        type Local = (&'a mut Position, &'a Velocity);
+        type Local = (&'a mut Position, &'a Velocity, &'a Entity);
 
         fn iter(
             &self,
-            entity: Entity,
-            (p, v): Self::Local,
+            (p, v, e): Self::Local,
             accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
         ) {
+            println!("{:?}", e);
             p.0 += v.0;
             p.1 += v.1;
             p.2 += v.2;
