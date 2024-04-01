@@ -1,10 +1,10 @@
-use crate::{ArchetypeId, ArchetypeIndex, Generation};
+use crate::archetype::{ArchetypeId, ArchetypeIdx, Generation};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct Entity {
     generation: Generation,
     archetype_id: ArchetypeId,
-    archetype_index: ArchetypeIndex,
+    archetype_idx: ArchetypeIdx,
 }
 
 impl Default for Entity {
@@ -12,7 +12,7 @@ impl Default for Entity {
         Self {
             generation: 0,
             archetype_id: 0,
-            archetype_index: 0,
+            archetype_idx: 0,
         }
     }
 }
@@ -21,12 +21,12 @@ impl Entity {
     pub fn new(
         generation: Generation,
         archetype_id: ArchetypeId,
-        archetype_index: ArchetypeIndex,
+        archetype_idx: ArchetypeIdx,
     ) -> Self {
         Self {
             generation,
             archetype_id,
-            archetype_index,
+            archetype_idx,
         }
     }
 
@@ -41,7 +41,7 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn archetype_index(&self) -> ArchetypeIndex {
-        self.archetype_index
+    pub fn archetype_idx(&self) -> ArchetypeId {
+        self.archetype_idx
     }
 }

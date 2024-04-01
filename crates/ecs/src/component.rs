@@ -1,5 +1,3 @@
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 pub trait Component: 'static + Sized + Debug {}
-
-impl<T: 'static + Sized + Debug> Component for T {}

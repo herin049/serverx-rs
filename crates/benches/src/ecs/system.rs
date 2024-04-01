@@ -1,50 +1,45 @@
 use criterion::{black_box, Bencher, Criterion};
-use rand::{prelude::SliceRandom, thread_rng};
 use serverx_ecs::{
     entity::Entity,
-    registry::Registry,
-    system::{System, SystemAccessor, SystemPar},
+    execution::{
+        iter::{SystemIter, SystemParIter},
+        run::{Runnable, RunnablePar},
+    },
+    registry::{access::Accessor, Registry},
 };
 
 use crate::ecs::common::*;
 
 struct SimpleSystem;
 
-impl<'a> System<'a> for SimpleSystem {
+impl<'a> SystemIter<'a> for SimpleSystem {
     type Global = ();
     type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
 
-
-    fn run(
-        &self,
+    fn iter(
+        &mut self,
         _entity: Entity,
-        components: Self::Local,
-        _accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local,
+        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
-        let (a, b, c) = components;
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
         a.2 = b.2 + c.2;
     }
 }
 
-impl<'a> SystemPar<'a> for SimpleSystem {
-    type Ctx = ();
+struct SimpleSystemPar;
+
+impl<'a> SystemParIter<'a> for SimpleSystemPar {
     type Global = ();
     type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
 
-    fn par_ctx(&'a self) -> Self::Ctx {
-        ()
-    }
-
-    fn run(
-        &'a self,
+    fn iter(
+        &self,
         _entity: Entity,
-        components: Self::Local,
-        _accessor: &mut SystemAccessor<'a, Self::Local, Self::Global>,
-        _ctx: &mut Self::Ctx,
+        (a, b, c): Self::Local,
+        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
     ) {
-        let (a, b, c) = components;
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
         a.2 = b.2 + c.2;
@@ -72,9 +67,11 @@ impl Benchmark {
 
     pub fn run(&mut self) {
         if self.par {
-            self.reg.run_par(&SimpleSystem);
+            let mut sys = SimpleSystemPar;
+            sys.runnable().run(&mut self.reg);
         } else {
-            self.reg.run(&SimpleSystem);
+            let mut sys = SimpleSystem;
+            sys.runnable().run(&mut self.reg);
         }
     }
 

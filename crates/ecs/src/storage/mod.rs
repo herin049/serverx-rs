@@ -1,3 +1,3 @@
-pub mod archetype;
-pub mod blob;
-pub mod event;
+pub mod channel;
+pub mod column;
+pub mod table;

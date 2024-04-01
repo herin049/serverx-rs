@@ -29,7 +29,7 @@ impl Benchmark {
     }
 
     pub fn run(&mut self) {
-        for e in self.entities.iter() {
+        for e in &self.entities {
             if let Some((a, b, c)) = self
                 .reg
                 .get_mut::<(&mut ComponentA, &ComponentB, &ComponentC)>(*e)

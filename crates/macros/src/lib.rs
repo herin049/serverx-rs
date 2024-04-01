@@ -1,5 +1,6 @@
 #![feature(proc_macro_quote)]
 
+mod ecs_pipeline;
 mod ecs_tuple;
 mod identifier;
 mod nbt;
@@ -9,6 +10,7 @@ mod proto;
 use proc_macro::TokenStream;
 
 use crate::{
+    ecs_pipeline::pipeline_impl,
     ecs_tuple::tuple_macro_impl,
     identifier::identifier_macro_impl,
     nbt::nbt_macro_impl,
@@ -44,4 +46,9 @@ pub fn identifier(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn ecs_tuple_impl(input: TokenStream) -> TokenStream {
     tuple_macro_impl(input.into()).into()
+}
+
+#[proc_macro]
+pub fn ecs_pipeline_impl(input: TokenStream) -> TokenStream {
+    pipeline_impl(input.into()).into()
 }
