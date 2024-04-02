@@ -13,8 +13,8 @@ use crate::{
 };
 
 pub struct Table {
-    column_ptrs: Box<[*mut u8]>,
     len: usize,
+    column_ptrs: Box<[*mut u8]>,
     cap: usize,
     columns: Box<[Column]>,
     type_ids: Box<[TypeId]>,
@@ -58,20 +58,16 @@ impl Table {
     pub fn try_as_mut_ptr<T: ValueTuple>(&self) -> Result<T::PtrType, TryAsPtrError> {
         let type_ids = T::type_ids();
         let mut ptrs = T::PtrType::null_ptr_slice();
-        for i in 0..ptrs.as_ref().len() {
-            let mut found = false;
+        'outer: for i in 0..ptrs.as_ref().len() {
             for j in 0..self.type_ids.len() {
                 unsafe {
                     if *type_ids.as_ref().get_unchecked(i) == *self.type_ids.get_unchecked(j) {
-                        found = true;
                         *ptrs.as_mut().get_unchecked_mut(i) = *self.column_ptrs.get_unchecked(j);
-                        break;
+                        continue 'outer;
                     }
                 }
             }
-            if !found {
-                return Err(TryAsPtrError);
-            }
+            return Err(TryAsPtrError);
         }
         unsafe { Ok(T::PtrType::from_ptr_slice(ptrs.as_ref())) }
     }

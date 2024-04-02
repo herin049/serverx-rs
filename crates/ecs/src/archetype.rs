@@ -1,5 +1,6 @@
 use core::fmt::{Debug, Formatter};
-use std::{any::TypeId, cmp, marker::PhantomData, ops::Range, slice};
+use std::{any::TypeId, cmp, marker::PhantomData, ops::Range, ptr, slice};
+use std::ptr::NonNull;
 
 use slab::Slab;
 
@@ -15,13 +16,14 @@ use crate::{
 };
 use crate::storage::column::Column;
 
-pub type Generation = u64;
-pub type ArchetypeId = u32;
+pub type Generation = u16;
+pub type ArchetypeId = u16;
 pub type ArchetypeIdx = u32;
 
 pub struct Archetype {
-    table: Table,
+    entities_ptr: NonNull<Entity>,
     entity_lookup: Slab<usize>,
+    table: Table,
     generation: Generation,
     id: ArchetypeId,
 }
@@ -38,6 +40,7 @@ impl Archetype {
         type_ids.extend(component_type_ids.into_iter());
         unsafe {
             Self {
+                entities_ptr: NonNull::dangling(),
                 table: Table::from_raw_parts(columns.into_boxed_slice(), type_ids.into_boxed_slice()),
                 entity_lookup: Slab::new(),
                 generation: 1,
@@ -59,10 +62,10 @@ impl Archetype {
         &self.table
     }
 
+    #[inline(always)]
     pub fn entities(&self) -> &[Entity] {
         unsafe {
-            let column = self.table.column_unchecked(0);
-            slice::from_raw_parts(column.as_ptr::<Entity>().cast_const(), self.table.len())
+            slice::from_raw_parts(self.entities_ptr.as_ptr().cast_const(), self.table.len())
         }
     }
 
@@ -78,6 +81,7 @@ impl Archetype {
         let table_len = self.table.len();
         unsafe {
             self.table.push(values);
+            self.entities_ptr = NonNull::new_unchecked(self.table.column_unchecked(0).as_ptr::<Entity>());
         }
         let archetype_idx = self.entity_lookup.insert(table_len) as ArchetypeIdx;
         let entity = Entity::new(self.generation, self.id, archetype_idx);
