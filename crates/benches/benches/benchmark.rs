@@ -123,10 +123,10 @@ criterion_group!(
     // targets = registry_system, registry_system_par
     // targets = registry_system, registry_system_par, registry_system_runnable, registry_system_par_runnable
     // targets = registry_system, registry_system_par, evenio_system, evenio_system_par
-    targets = registry_random, evenio_random, registry_random_seq, evenio_random_seq
-    // targets = registry_push, evenio_push
+    // targets = registry_random, evenio_random, registry_random_seq, evenio_random_seq
+    targets = registry_push, evenio_push
     // targets = registry_push, registry_random, registry_random_seq
-    // targets = registry_system, evenio_system
+    // targets = registry_system, evenio_system, registry_system_par, evenio_system_par
     // targets = registry_system, registry_system_par, evenio_system, evenio_system_par
     // targets = registry_random_seq, registry_random
     // targets = registry_push

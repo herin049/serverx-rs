@@ -41,7 +41,7 @@ impl Entity {
     }
 
     #[inline(always)]
-    pub fn archetype_idx(&self) -> ArchetypeId {
+    pub fn archetype_idx(&self) -> ArchetypeIdx {
         self.archetype_idx
     }
 }
