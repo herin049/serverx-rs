@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use serverx_benches::{ecs, misc};
+use serverx_benches::{bvh, ecs, misc};
 
 pub fn registry_push(c: &mut Criterion) {
     let count: usize = 100000;
@@ -115,16 +115,31 @@ pub fn sorted(c: &mut Criterion) {
     c.bench_function(id_str.as_str(), |b| bench.iter(b));
 }
 
+pub fn bvh_build(c: &mut Criterion) {
+    let count: usize = 1000;
+    let id_str = format!("bvh build {}", count);
+    let mut bench = bvh::Benchmark::new(count);
+    c.bench_function(id_str.as_str(), |b| bench.iter(b));
+}
+
+pub fn hyperion_bvh_build(c: &mut Criterion) {
+    let count: usize = 1000;
+    let id_str = format!("hyperion bvh build {}", count);
+    let mut bench = bvh::hyperion::Benchmark::new(count);
+    c.bench_function(id_str.as_str(), |b| bench.iter(b));
+}
+
 criterion_group!(
     name = benches;
     config = Criterion::default().measurement_time(Duration::from_secs(10));
+    // targets = hyperion_bvh_build, bvh_build
     // targets = btree_insert, sorted
-    // targets = registry_pipeline, registry_no_pipeline, registry_par_pipeline, registry_par_no_pipeline
+    targets = registry_pipeline, registry_no_pipeline, registry_par_pipeline, registry_par_no_pipeline
     // targets = registry_system, registry_system_par
     // targets = registry_system, registry_system_par, registry_system_runnable, registry_system_par_runnable
     // targets = registry_system, registry_system_par, evenio_system, evenio_system_par
     // targets = registry_random, evenio_random, registry_random_seq, evenio_random_seq
-    targets = registry_push, evenio_push
+    // targets = registry_push, evenio_push
     // targets = registry_push, registry_random, registry_random_seq
     // targets = registry_system, evenio_system, registry_system_par, evenio_system_par
     // targets = registry_system, registry_system_par, evenio_system, evenio_system_par

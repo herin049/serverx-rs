@@ -88,7 +88,7 @@ pub fn update_client(client: &mut Client, server: &mut Server) {
             let generator = FlatGeneratorBuilder::new(384)
                 .layer(Block::IronBlock, 64)
                 .build();
-            let chunk = generator.generate((0, 0));
+            let chunk = generator.generate((0, 0).into());
             // println!("{:?}", chunk.sections().get(4).unwrap().blocks);
             let _ = client.outgoing.send(Box::new(ServerGameEvent {
                 event: GameEvent::StartWaitingForLevelChunks,

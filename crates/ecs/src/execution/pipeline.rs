@@ -3,22 +3,23 @@ use std::{any::TypeId, collections::BTreeSet, iter, marker::PhantomData};
 use serverx_macros::ecs_pipeline_impl;
 
 use crate::{
-    archetype::{UnsafeArchetypeCell},
+    archetype::{ArchetypeIdx, UnsafeArchetypeCell},
     execution::{
-        iter::{SystemIter, SystemParIter},
+        iter::{RegistryIter, RegistryParIter},
         run::{Runnable, RunnablePar},
     },
-    registry::{access::Accessor, Registry, UnsafeRegistryCell},
-    tuple::{borrow::BorrowTuple, value::ValueTuple},
+    registry::{access::IterAccessor, Registry, UnsafeRegistryCell},
+    storage::table::TablePartitionsMut,
+    tuple::{borrow::BorrowTuple, message::SenderTuple, value::ValueTuple},
     util,
 };
-use crate::storage::table::TablePartitionsMut;
-use crate::archetype::ArchetypeId;
-use crate::archetype::ArchetypeIdx;
 
-pub trait SystemPipeline<'a>: Sized + 'a {
-    fn runnable(self) -> SystemPipelineRunnable<'a, Self> {
-        SystemPipelineRunnable {
+pub trait RegistryPipeline: Sized {
+    fn runnable<'a>(self) -> RegistryPipelineRunnable<'a, Self>
+    where
+        Self: 'a,
+    {
+        RegistryPipelineRunnable {
             phantom: PhantomData,
             pipeline: self,
         }
@@ -33,14 +34,17 @@ impl<'a, T: 'a> Pipeline<'a, T> {
     }
 }
 
-pub struct SystemPipelineRunnable<'a, T: SystemPipeline<'a>> {
+pub struct RegistryPipelineRunnable<'a, T: RegistryPipeline> {
     phantom: PhantomData<&'a T>,
     pipeline: T,
 }
 
-pub trait SystemParPipeline<'a>: Sized + 'a {
-    fn runnable(self) -> SystemParPipelineRunnable<'a, Self> {
-        SystemParPipelineRunnable {
+pub trait RegistryParPipeline: Sized {
+    fn runnable<'a>(self) -> RegistryParPipelineRunnable<'a, Self>
+    where
+        Self: 'a,
+    {
+        RegistryParPipelineRunnable {
             phantom: PhantomData,
             pipeline: self,
         }
@@ -55,97 +59,10 @@ impl<'a, T: 'a> ParPipeline<'a, T> {
     }
 }
 
-pub struct SystemParPipelineRunnable<'a, T: SystemParPipeline<'a>> {
+pub struct RegistryParPipelineRunnable<'a, T: RegistryParPipeline> {
     phantom: PhantomData<&'a T>,
     pipeline: T,
 }
-
-// impl<'a, 'b, T0: SystemParIter<'b>, T1: SystemParIter<'b>> SystemParPipeline<'a> for
-// ParPipeline<'a, (&'a T0, &'a T1)> {}
-//
-// impl<'a, 'b, 'r, T0: SystemParIter<'b>, T1: SystemParIter<'b>> RunnablePar<'r> for
-// SystemParPipelineRunnable<'a, ParPipeline<'a, (&'a T0, &'a T1)>> where 'r: 'b {
-//     fn extend_local_read(&self, type_ids: &mut BTreeSet<TypeId>) {
-//         type_ids.extend(<T0::Local as BorrowTuple<'b>>::ReadType::type_ids().as_ref());
-//         type_ids.extend(<T1::Local as BorrowTuple<'b>>::ReadType::type_ids().as_ref());
-//     }
-//     fn extend_local_write(&self, type_ids: &mut BTreeSet<TypeId>) {
-//         type_ids.extend(<T0::Local as BorrowTuple<'b>>::WriteType::type_ids().as_ref());
-//         type_ids.extend(<T1::Local as BorrowTuple<'b>>::WriteType::type_ids().as_ref());
-//
-//     }
-//     fn extend_global_read(&self, type_ids: &mut BTreeSet<TypeId>) {
-//         type_ids.extend(<T0::Global as BorrowTuple<'b>>::ReadType::type_ids().as_ref());
-//         type_ids.extend(<T1::Global as BorrowTuple<'b>>::ReadType::type_ids().as_ref());
-//     }
-//
-//     fn extend_global_write(&self, type_ids: &mut BTreeSet<TypeId>) {
-//         type_ids.extend(<T0::Global as BorrowTuple<'b>>::WriteType::type_ids().as_ref());
-//         type_ids.extend(<T1::Global as BorrowTuple<'b>>::WriteType::type_ids().as_ref());
-//     }
-//
-//     fn run(&self, registry: &'r mut Registry) {
-//         let registry_cell = UnsafeRegistryCell(registry);
-//         util::assert_no_alias(<T0::Local as BorrowTuple<'b>>::WriteType::type_ids().as_ref(),
-// "aliasing in write components");         util::assert_no_alias(<T1::Local as
-// BorrowTuple<'b>>::WriteType::type_ids().as_ref(), "aliasing in write components");         let
-// mut global_read: BTreeSet<TypeId> = BTreeSet::new();         let mut local_write:
-// BTreeSet<TypeId> = BTreeSet::new();         global_read.extend(<T0::Global as
-// BorrowTuple<'b>>::ReadType::type_ids().as_ref());         global_read.extend(<T1::Global as
-// BorrowTuple<'b>>::ReadType::type_ids().as_ref());         local_write.extend(<T0::Local as
-// BorrowTuple<'b>>::WriteType::type_ids().as_ref());         local_write.extend(<T1::Local as
-// BorrowTuple<'b>>::WriteType::type_ids().as_ref());         if
-// !global_read.is_disjoint(&local_write) {             panic!("system global read aliases with
-// local write");         }
-//         rayon::scope(|s| {
-//             for archetype in registry_cell.archetypes() {
-//                 let mut t0 = if util::subset(<T0::Local as
-// BorrowTuple<'b>>::ValueType::type_ids().as_ref(), archetype.type_ids()) {
-// unsafe {                         UnsafeArchetypeCell(archetype).partitions_mut::<'_, 'b,
-// T0::Local>(self.pipeline.1)                     }
-//                 } else {
-//                     ArchetypePartitionsMut::empty()
-//                 };
-//
-//                 let mut t1 = if util::subset(<T1::Local as
-// BorrowTuple<'b>>::ValueType::type_ids().as_ref(), archetype.type_ids()) {
-// unsafe {                         UnsafeArchetypeCell(archetype).partitions_mut::<'_, 'b,
-// T1::Local>(self.pipeline.1)                     }
-//                 } else {
-//                     ArchetypePartitionsMut::empty()
-//                 };
-//
-//                 loop {
-//                     let mut chunk0 = t0.next();
-//                     let mut chunk1 = t1.next();
-//                     if chunk0.is_none() && chunk1.is_none() {
-//                         break;
-//                     }
-//
-//                     let registry_cell_copy = registry_cell.clone();
-//                     s.spawn(move |_| {
-//                         if let Some(mut chunk) = chunk0 {
-//                             let mut accessor = Accessor::<'_, 'b, T0::Local,
-// T0::Global>::new(registry_cell_copy.clone());                             for (entity, values) in
-// chunk.iter() {                                 accessor.entity = entity;
-//                                 self.pipeline.0.0.iter(entity, values, &mut accessor);
-//                             }
-//                         }
-//
-//                         if let Some(mut chunk) = chunk1 {
-//                             let mut accessor = Accessor::<'_, 'b, T1::Local,
-// T1::Global>::new(registry_cell_copy.clone());                             for (entity, values) in
-// chunk.iter() {                                 accessor.entity = entity;
-//                                 self.pipeline.0.1.iter(entity, values, &mut accessor);
-//                             }
-//                         }
-//                     });
-//                 }
-//             }
-//         });
-//         // let mut global_read: Vec<TypeId> =
-//     }
-// }
 
 ecs_pipeline_impl!(10);
 
@@ -155,11 +72,15 @@ mod tests {
         component::Component,
         entity::Entity,
         execution::{
-            iter::{SystemIter, SystemParIter},
-            pipeline::{ParPipeline, Pipeline, SystemParPipeline, SystemPipeline},
+            iter::{RegistryIter, RegistryParIter},
+            pipeline::{ParPipeline, Pipeline, RegistryParPipeline, RegistryPipeline},
             run::{Runnable, RunnablePar},
         },
-        registry::{access::Accessor, Registry},
+        registry::{
+            access::{Accessor, IterAccessor},
+            Registry,
+        },
+        storage::channel::Sender,
     };
 
     #[derive(Debug)]
@@ -173,17 +94,16 @@ mod tests {
     pub struct SimpleIter<'a>(&'a i32);
     pub struct SimpleParIter<'a>(&'a i32);
 
-    impl<'a, 'b> SystemIter<'a> for SimpleIter<'b>
-    where
-        'b: 'a,
-    {
-        type Global = ();
-        type Local = (&'a mut Position, &'a Entity, &'a Velocity);
+    impl<'b> RegistryIter for SimpleIter<'b> {
+        type Global<'g> = ();
+        type Local<'l> = (&'l mut Position, &'l Entity, &'l Velocity);
+        type Send<'s> = ();
 
         fn iter(
             &mut self,
-            (p, e, v): Self::Local,
-            accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+            (p, e, v): Self::Local<'_>,
+            accessor: &mut impl Accessor,
+            send: &mut Self::Send<'_>,
         ) {
             println!("{:?}", e);
             p.0 += v.0;
@@ -192,19 +112,18 @@ mod tests {
         }
     }
 
-    impl<'a, 'b> SystemParIter<'a> for SimpleParIter<'b>
-    where
-        'b: 'a,
-    {
-        type Global = ();
-        type Local = (&'a Entity, &'a mut Position, &'a Velocity);
+    impl<'a> RegistryParIter for SimpleParIter<'a> {
+        type Global<'g> = ();
+        type Local<'l> = (&'l Entity, &'l mut Position, &'l Velocity);
+        type Send<'s> = (Sender<'s, String>,);
 
         fn iter(
             &self,
-            (e, p, v): Self::Local,
-            accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+            (e, p, v): Self::Local<'_>,
+            accessor: &mut impl Accessor,
+            send: &mut Self::Send<'_>,
         ) {
-            println!("{:?}", e);
+            send.0.send(format!("system {}: {:?}", self.0, e));
             p.0 += v.0;
             p.1 += v.1;
             p.2 += v.2;
@@ -218,11 +137,13 @@ mod tests {
             reg.push((Position(0, 0, 0), Velocity(1, -1, 0)));
         }
         println!("{:#?}", reg);
-        let i = 123;
+        let i = 1;
+        let j = 2;
         let mut s1 = SimpleParIter(&i);
-        let mut s2 = SimpleParIter(&i);
+        let mut s2 = SimpleParIter(&j);
         let p = ParPipeline::new((&mut s1, &mut s2), 5);
         p.runnable().run(&mut reg);
-        println!("{:?}", reg);
+        // println!("{:?}", reg);
+        println!("{:#?}", reg.messages().messages::<String>());
     }
 }

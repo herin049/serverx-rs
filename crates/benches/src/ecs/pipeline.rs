@@ -4,25 +4,30 @@ use criterion::{black_box, Bencher, Criterion};
 use serverx_ecs::{
     entity::Entity,
     execution::{
-        iter::{SystemIter, SystemParIter},
-        pipeline::{ParPipeline, Pipeline, SystemParPipeline, SystemPipeline},
+        iter::{RegistryIter, RegistryParIter},
+        pipeline::{ParPipeline, Pipeline, RegistryParPipeline, RegistryPipeline},
         run::{Runnable, RunnablePar},
     },
-    registry::{access::Accessor, Registry},
+    registry::{
+        access::{Accessor, IterAccessor},
+        Registry,
+    },
 };
 
 use crate::ecs::common::*;
 
 struct SimpleIterA;
 
-impl<'a> SystemIter<'a> for SimpleIterA {
-    type Global = ();
-    type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
+impl RegistryIter for SimpleIterA {
+    type Global<'g> = ();
+    type Local<'l> = (&'l mut ComponentA, &'l ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &mut self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
@@ -32,14 +37,16 @@ impl<'a> SystemIter<'a> for SimpleIterA {
 
 struct SimpleParIterA;
 
-impl<'a> SystemParIter<'a> for SimpleParIterA {
-    type Global = ();
-    type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
+impl RegistryParIter for SimpleParIterA {
+    type Global<'g> = ();
+    type Local<'l> = (&'l mut ComponentA, &'l ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
@@ -49,14 +56,16 @@ impl<'a> SystemParIter<'a> for SimpleParIterA {
 
 struct SimpleIterB;
 
-impl<'a> SystemIter<'a> for SimpleIterB {
-    type Global = ();
-    type Local = (&'a ComponentA, &'a mut ComponentB, &'a ComponentC);
+impl RegistryIter for SimpleIterB {
+    type Global<'g> = ();
+    type Local<'l> = (&'l ComponentA, &'l mut ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &mut self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         b.0 = a.0 - c.0;
         b.1 = a.1 - c.1;
@@ -66,14 +75,16 @@ impl<'a> SystemIter<'a> for SimpleIterB {
 
 struct SimpleParIterB;
 
-impl<'a> SystemParIter<'a> for SimpleParIterB {
-    type Global = ();
-    type Local = (&'a ComponentA, &'a mut ComponentB, &'a ComponentC);
+impl RegistryParIter for SimpleParIterB {
+    type Global<'g> = ();
+    type Local<'l> = (&'l ComponentA, &'l mut ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         b.0 = a.0 - c.0;
         b.1 = a.1 - c.1;
@@ -83,14 +94,16 @@ impl<'a> SystemParIter<'a> for SimpleParIterB {
 
 struct SimpleIterC;
 
-impl<'a> SystemIter<'a> for SimpleIterC {
-    type Global = ();
-    type Local = (&'a ComponentA, &'a ComponentB, &'a mut ComponentC);
+impl RegistryIter for SimpleIterC {
+    type Global<'g> = ();
+    type Local<'l> = (&'l ComponentA, &'l ComponentB, &'l mut ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &mut self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         c.0 = cmp::min(a.0, b.0);
         c.1 = cmp::min(a.1, b.1);
@@ -100,14 +113,16 @@ impl<'a> SystemIter<'a> for SimpleIterC {
 
 struct SimpleParIterC;
 
-impl<'a> SystemParIter<'a> for SimpleParIterC {
-    type Global = ();
-    type Local = (&'a ComponentA, &'a ComponentB, &'a mut ComponentC);
+impl RegistryParIter for SimpleParIterC {
+    type Global<'g> = ();
+    type Local<'l> = (&'l ComponentA, &'l ComponentB, &'l mut ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         c.0 = cmp::min(a.0, b.0);
         c.1 = cmp::min(a.1, b.1);

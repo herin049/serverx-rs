@@ -4,6 +4,7 @@ use std::any::TypeId;
 use crate::{
     archetype::{Archetype, ArchetypeId, DebugArchetypeEntry, UnsafeArchetypeCell},
     entity::Entity,
+    message::Messages,
     tuple::{
         borrow::{BorrowTuple, BorrowType},
         component::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
@@ -17,6 +18,7 @@ pub mod access;
 pub struct Registry {
     archetypes: Vec<Archetype>,
     archetype_lookup: Vec<(Box<[TypeId]>, ArchetypeId)>,
+    messages: Messages,
 }
 
 impl Registry {
@@ -24,7 +26,16 @@ impl Registry {
         Self {
             archetypes: Vec::new(),
             archetype_lookup: Vec::new(),
+            messages: Messages::new(),
         }
+    }
+
+    pub fn messages(&self) -> &Messages {
+        &self.messages
+    }
+
+    pub fn messages_mut(&mut self) -> &mut Messages {
+        &mut self.messages
     }
 
     pub fn archetypes(&self) -> &[Archetype] {
@@ -111,6 +122,10 @@ impl Registry {
             .map(|a| a.get_mut::<'b, 'c, T>(entity))
             .flatten()
     }
+
+    pub fn unsafe_cell(&self) -> UnsafeRegistryCell<'_> {
+        UnsafeRegistryCell(self)
+    }
 }
 
 #[derive(Clone)]
@@ -120,6 +135,13 @@ unsafe impl<'a> Send for UnsafeRegistryCell<'a> {}
 unsafe impl<'a> Sync for UnsafeRegistryCell<'a> {}
 
 impl<'a> UnsafeRegistryCell<'a> {
+    pub fn messages<'b>(&self) -> &'b Messages
+    where
+        'a: 'b,
+    {
+        self.0.messages()
+    }
+
     pub fn archetypes(&self) -> &'a [Archetype] {
         self.0.archetypes()
     }
@@ -207,5 +229,9 @@ mod tests {
             // reg.get_mut::<(&mut ComponentA,)>(*i);
             reg.get_mut::<(&mut ComponentA,)>(*i);
         }
+
+        let a = |x: i32| {
+            println!("{}", x);
+        };
     }
 }

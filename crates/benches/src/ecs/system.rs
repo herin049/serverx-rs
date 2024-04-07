@@ -2,24 +2,29 @@ use criterion::{black_box, Bencher, Criterion};
 use serverx_ecs::{
     entity::Entity,
     execution::{
-        iter::{SystemIter, SystemParIter},
+        iter::{RegistryIter, RegistryParIter},
         run::{Runnable, RunnablePar},
     },
-    registry::{access::Accessor, Registry},
+    registry::{
+        access::{Accessor, IterAccessor},
+        Registry,
+    },
 };
 
 use crate::ecs::common::*;
 
 struct SimpleSystem;
 
-impl<'a> SystemIter<'a> for SimpleSystem {
-    type Global = ();
-    type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
+impl RegistryIter for SimpleSystem {
+    type Global<'g> = ();
+    type Local<'l> = (&'l mut ComponentA, &'l ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &mut self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
@@ -29,20 +34,23 @@ impl<'a> SystemIter<'a> for SimpleSystem {
 
 struct SimpleSystemPar;
 
-impl<'a> SystemParIter<'a> for SimpleSystemPar {
-    type Global = ();
-    type Local = (&'a mut ComponentA, &'a ComponentB, &'a ComponentC);
+impl RegistryParIter for SimpleSystemPar {
+    type Global<'g> = ();
+    type Local<'l> = (&'l mut ComponentA, &'l ComponentB, &'l ComponentC);
+    type Send<'s> = ();
 
     fn iter(
         &self,
-        (a, b, c): Self::Local,
-        _accessor: &mut Accessor<'_, 'a, Self::Local, Self::Global>,
+        (a, b, c): Self::Local<'_>,
+        _accessor: &mut impl Accessor,
+        _send: &mut Self::Send<'_>,
     ) {
         a.0 = b.0 + c.0;
         a.1 = b.1 + c.1;
         a.2 = b.2 + c.2;
     }
 }
+
 
 pub struct Benchmark {
     pub reg: Registry,

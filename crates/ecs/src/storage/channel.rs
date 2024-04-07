@@ -1,5 +1,4 @@
-use std::cell::UnsafeCell;
-use std::ptr;
+use std::{cell::UnsafeCell, ptr};
 
 use thread_local::ThreadLocal;
 
@@ -18,8 +17,6 @@ impl<T> UnsafeVecCell<T> {
         self.0.get_mut()
     }
 }
-
-unsafe impl<T> Sync for UnsafeVecCell<T> {}
 
 pub struct Channel<T: 'static + Sized + Send + Sync> {
     messages: UnsafeVecCell<T>,
@@ -42,6 +39,18 @@ impl<T: 'static + Sized + Send + Sync> Channel<T> {
         (&mut *self.tl_messages.get_or(|| UnsafeVecCell::new()).get()).push(message)
     }
 
+    pub unsafe fn sender(&self) -> Sender<'_, T> {
+        Sender {
+            vec_cell: &self.messages,
+        }
+    }
+
+    pub unsafe fn sender_tl(&self) -> Sender<'_, T> {
+        Sender {
+            vec_cell: &self.tl_messages.get_or(|| UnsafeVecCell::new()),
+        }
+    }
+
     pub unsafe fn messages(&self) -> &[T] {
         (&*self.messages.get()).as_slice()
     }
@@ -50,8 +59,8 @@ impl<T: 'static + Sized + Send + Sync> Channel<T> {
         (&mut *self.messages.get()).clear();
     }
 
-    pub unsafe fn sync(&self) {
-        self.tl_messages.iter().for_each(|c| {
+    pub unsafe fn sync(&mut self) {
+        self.tl_messages.iter_mut().for_each(|c| {
             let v = &mut *self.messages.get();
             let tlv = &mut *c.get();
             v.append(tlv);
@@ -60,7 +69,7 @@ impl<T: 'static + Sized + Send + Sync> Channel<T> {
 }
 
 pub struct Sender<'a, T: 'static + Sized + Send + Sync> {
-    vec_cell: &'a UnsafeVecCell<T>
+    vec_cell: &'a UnsafeVecCell<T>,
 }
 
 impl<'a, T: 'static + Sized + Send + Sync> Sender<'a, T> {

@@ -1,13 +1,14 @@
 use std::collections::BTreeSet;
-use criterion::{Bencher, black_box};
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+
+use criterion::{black_box, Bencher};
+use rand::{seq::SliceRandom, thread_rng};
 use serverx_ecs::registry::Registry;
+
 use crate::ecs::common::{ComponentA, ComponentB, ComponentC, ComponentD};
 
 pub struct Benchmark {
     pub count: usize,
-    pub values: Vec<i64>
+    pub values: Vec<i64>,
 }
 
 impl Benchmark {

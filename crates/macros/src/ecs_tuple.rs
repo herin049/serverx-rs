@@ -139,6 +139,31 @@ pub fn typle_impl_n(count: usize) -> TokenStream {
 
         impl<#(#ty_idents: Component),*> ComponentTuple for (#(#ty_idents,)*) {
         }
+
+        impl<'a #(,#ty_idents: Message)*> SenderTuple<'a> for (#(Sender<'a, #ty_idents>,)*) {
+            type MessageType = (#(#ty_idents,)*);
+
+            fn register(messages: &mut Messages) {
+                #(messages.register::<#ty_idents>();)*
+            }
+
+            unsafe fn sync(messages: &mut Messages) {
+                #(messages.sync::<#ty_idents>();)*
+            }
+
+            unsafe fn sender<'b>(messages: &UnsafeMessagesCell<'b>) -> Self where 'b: 'a {
+                (#(messages.sender::<#ty_idents>(),)*)
+            }
+
+            unsafe fn sender_tl<'b>(messages: &UnsafeMessagesCell<'b>) -> Self where 'b: 'a {
+                (#(messages.sender_tl::<#ty_idents>(),)*)
+            }
+
+
+            unsafe fn flush(messages: &UnsafeMessagesCell<'_>) {
+                #(messages.flush::<#ty_idents>();)*
+            }
+        }
     });
     quote! {
         #(#results)*

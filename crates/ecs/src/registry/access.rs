@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
+    archetype::{ArchetypeId, ArchetypeIdx},
     entity::Entity,
     registry::UnsafeRegistryCell,
     tuple::{
@@ -9,15 +10,27 @@ use crate::{
     },
     util,
 };
-use crate::archetype::{ArchetypeId, ArchetypeIdx};
 
-pub struct Accessor<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> {
-    phantom: PhantomData<&'b (L, G)>,
+pub trait Accessor {
+    fn contains(&self, entity: Entity) -> bool;
+    fn has<T: ComponentTuple>(&self, entity: Entity) -> bool;
+    fn get<'a, 'b, T: ComponentRefTuple<'b>>(&'a self, entity: Entity) -> Option<T>
+    where
+        'a: 'b;
+    fn get_mut<'a, 'b, T: ComponentBorrowTuple<'b>>(&'a mut self, entity: Entity) -> Option<T>
+    where
+        'a: 'b;
+}
+
+pub struct IterAccessor<'a, L: ComponentBorrowTuple<'static>, G: ComponentBorrowTuple<'static>> {
+    phantom: PhantomData<(L, G)>,
     registry: UnsafeRegistryCell<'a>,
     pub(crate) iter_pos: (ArchetypeId, ArchetypeIdx),
 }
 
-impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<'a, 'b, L, G> {
+impl<'a, L: ComponentBorrowTuple<'static>, G: ComponentBorrowTuple<'static>>
+    IterAccessor<'a, L, G>
+{
     pub fn new<'r>(registry: UnsafeRegistryCell<'r>) -> Self
     where
         'r: 'a,
@@ -25,27 +38,32 @@ impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<
         Self {
             phantom: PhantomData,
             registry,
-            iter_pos: (ArchetypeId::MAX, ArchetypeIdx::MAX)
+            iter_pos: (ArchetypeId::MAX, ArchetypeIdx::MAX),
         }
     }
+}
 
-    pub fn contains(&self, entity: Entity) -> bool {
+impl<'a, L: ComponentBorrowTuple<'static>, G: ComponentBorrowTuple<'static>> Accessor
+    for IterAccessor<'a, L, G>
+{
+    fn contains(&self, entity: Entity) -> bool {
         self.registry.contains(entity)
     }
 
-    pub fn has<T: ComponentTuple>(&self, entity: Entity) -> bool {
+    fn has<T: ComponentTuple>(&self, entity: Entity) -> bool {
         self.registry.has::<T>(entity)
     }
 
-    pub fn get<'c, T: ComponentRefTuple<'c>>(&self, entity: Entity) -> Option<T>
+    fn get<'b, 'c, T: ComponentRefTuple<'c>>(&'b self, entity: Entity) -> Option<T>
     where
-        'a: 'c,
+        'b: 'c,
     {
         let type_ids = T::ValueType::type_ids();
         if entity.archetype_id() == self.iter_pos.0 {
-            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity) == Some(self.iter_pos.1 as usize) {
-                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref())
-                {
+            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity)
+                == Some(self.iter_pos.1 as usize)
+            {
+                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref()) {
                     panic!("invalid get");
                 }
             }
@@ -56,15 +74,16 @@ impl<'a, 'b, L: ComponentBorrowTuple<'b>, G: ComponentBorrowTuple<'b>> Accessor<
         unsafe { self.registry.get::<'c, T>(entity) }
     }
 
-    pub fn get_mut<'c, T: ComponentBorrowTuple<'c>>(&mut self, entity: Entity) -> Option<T>
+    fn get_mut<'b, 'c, T: ComponentBorrowTuple<'c>>(&'b mut self, entity: Entity) -> Option<T>
     where
-        'a: 'c,
+        'b: 'c,
     {
         let type_ids = T::ValueType::type_ids();
         if entity.archetype_id() == self.iter_pos.0 {
-            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity) == Some(self.iter_pos.1 as usize) {
-                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref())
-                {
+            if self.registry.archetypes()[self.iter_pos.0 as usize].index_of(entity)
+                == Some(self.iter_pos.1 as usize)
+            {
+                if !util::disjoint(type_ids.as_ref(), L::WriteType::type_ids().as_ref()) {
                     panic!("invalid get");
                 }
             }

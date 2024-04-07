@@ -10,10 +10,13 @@ serverx-ecs = { path = "../ecs" }
 serverx-world = { path = "../world" }
 serverx-game = { path = "../game" }
 serverx-protocol = { path = "../protocol" }
+serverx-bvh = { path = "../bvh" }
+serverx-hyperion_bvh = { path = "../hyperion_bvh" }
 rand = "0.8.5"
 evenio = { version = "0.4.2", features = ["rayon"]}
 thread_local = "1.1.8"
 
+glam = "0.27.0"
 [dev-dependencies]
 
 [[bench]]

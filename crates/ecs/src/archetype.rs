@@ -1,12 +1,14 @@
 use core::fmt::{Debug, Formatter};
-use std::{any::TypeId, cmp, marker::PhantomData, ops::Range, ptr, slice};
-use std::ptr::NonNull;
+use std::{any::TypeId, cmp, marker::PhantomData, ops::Range, ptr, ptr::NonNull, slice};
 
 use slab::Slab;
 
 use crate::{
     entity::Entity,
-    storage::table::{DebugTableEntry, Table},
+    storage::{
+        column::Column,
+        table::{DebugTableEntry, Table},
+    },
     tuple::{
         borrow::{BorrowTuple, RefTuple},
         component::{ComponentBorrowTuple, ComponentRefTuple, ComponentTuple},
@@ -14,7 +16,6 @@ use crate::{
         value::ValueTuple,
     },
 };
-use crate::storage::column::Column;
 
 pub type Generation = u16;
 pub type ArchetypeId = u16;
@@ -41,12 +42,14 @@ impl Archetype {
         unsafe {
             Self {
                 entities_ptr: NonNull::dangling(),
-                table: Table::from_raw_parts(columns.into_boxed_slice(), type_ids.into_boxed_slice()),
+                table: Table::from_raw_parts(
+                    columns.into_boxed_slice(),
+                    type_ids.into_boxed_slice(),
+                ),
                 entity_lookup: Slab::new(),
                 generation: 1,
-                id
+                id,
             }
-
         }
     }
 
@@ -64,9 +67,7 @@ impl Archetype {
 
     #[inline(always)]
     pub fn entities(&self) -> &[Entity] {
-        unsafe {
-            slice::from_raw_parts(self.entities_ptr.as_ptr().cast_const(), self.table.len())
-        }
+        unsafe { slice::from_raw_parts(self.entities_ptr.as_ptr().cast_const(), self.table.len()) }
     }
 
     pub fn type_ids(&self) -> &[TypeId] {
@@ -74,20 +75,27 @@ impl Archetype {
     }
 
     pub fn index_of(&self, entity: Entity) -> Option<usize> {
-        self.entity_lookup.get(entity.archetype_idx() as usize).map(|i| *i)
+        self.entity_lookup
+            .get(entity.archetype_idx() as usize)
+            .map(|i| *i)
     }
 
     pub fn push<T: ComponentTuple>(&mut self, values: T) -> Entity {
         let table_len = self.table.len();
         unsafe {
             self.table.push(values);
-            self.entities_ptr = NonNull::new_unchecked(self.table.column_unchecked(0).as_ptr::<Entity>());
+            self.entities_ptr =
+                NonNull::new_unchecked(self.table.column_unchecked(0).as_ptr::<Entity>());
         }
         let archetype_idx = self.entity_lookup.insert(table_len) as ArchetypeIdx;
         let entity = Entity::new(self.generation, self.id, archetype_idx);
         self.generation = self.generation.wrapping_add(1);
         unsafe {
-            self.table.column(0).as_ptr::<Entity>().add(table_len).write(entity);
+            self.table
+                .column(0)
+                .as_ptr::<Entity>()
+                .add(table_len)
+                .write(entity);
         }
         entity
     }
@@ -179,7 +187,8 @@ impl<'a> UnsafeArchetypeCell<'a> {
     {
         if let Some(entity_idx) = self.0.entity_lookup.get(entity.archetype_idx() as usize) {
             unsafe {
-                if self.0.entities().get_unchecked(*entity_idx).generation() == entity.generation() {
+                if self.0.entities().get_unchecked(*entity_idx).generation() == entity.generation()
+                {
                     if let Ok(ptr) = self.0.table.try_as_mut_ptr::<T::ValueType>() {
                         return Some(T::deref(ptr));
                     }
@@ -201,10 +210,13 @@ pub struct DebugArchetypeEntry<'a> {
 
 impl<'a> Debug for DebugArchetypeEntry<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        DebugTableEntry::fmt(&DebugTableEntry {
-            table: &self.archetype.table,
-            index: self.index,
-        }, f)
+        DebugTableEntry::fmt(
+            &DebugTableEntry {
+                table: &self.archetype.table,
+                index: self.index,
+            },
+            f,
+        )
     }
 }
 

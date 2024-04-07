@@ -69,6 +69,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8901269c6307e8d93993578286ac0edf7f195079ffff5ebdeea6a59ffb7e36bc"
 
 [[package]]
+name = "arrayvec"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -408,6 +414,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastrand"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "658bd65b1cf4c852a3cc96f18a8ce7b5640f6b703f905c7d74532294c2a63984"
+
+[[package]]
 name = "flume"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -465,6 +477,12 @@ name = "gimli"
 version = "0.28.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4271d37baee1b8c7e4b708028c57d816cf9d2434acb33a549475f78c181f6253"
+
+[[package]]
+name = "glam"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e05e7e6723e3455f4818c7b26e855439f7546cf617ef669d1adedb8669e5cb9"
 
 [[package]]
 name = "half"
@@ -682,6 +700,15 @@ name = "oorandom"
 version = "11.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
+
+[[package]]
+name = "ordered-float"
+version = "4.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a76df7075c7d4d01fdcb46c912dd17fba5b60c78ea480b475f2b6ab6f666584e"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "overload"
@@ -975,10 +1002,13 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "evenio",
+ "glam",
  "rand 0.8.5",
  "serverx-block",
+ "serverx-bvh",
  "serverx-ecs",
  "serverx-game",
+ "serverx-hyperion_bvh",
  "serverx-protocol",
  "serverx-world",
  "thread_local",
@@ -987,6 +1017,16 @@ dependencies = [
 [[package]]
 name = "serverx-block"
 version = "0.1.0"
+
+[[package]]
+name = "serverx-bvh"
+version = "0.1.0"
+dependencies = [
+ "glam",
+ "log",
+ "rayon",
+ "slab",
+]
 
 [[package]]
 name = "serverx-common"
@@ -1022,6 +1062,17 @@ dependencies = [
  "serverx-ecs",
  "serverx-world",
  "slab",
+]
+
+[[package]]
+name = "serverx-hyperion_bvh"
+version = "0.1.0"
+dependencies = [
+ "arrayvec",
+ "fastrand",
+ "glam",
+ "ordered-float",
+ "rayon",
 ]
 
 [[package]]
